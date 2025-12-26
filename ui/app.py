@@ -10,6 +10,7 @@ import re
 from urllib.parse import urlparse
 import psycopg2
 from psycopg2 import sql
+import pandas as pd
 
 # Konfiguration
 CONFIG_FILE = "/app/config/config.yaml"
@@ -634,7 +635,6 @@ with tab1:
                 
                 # Chart für Verlauf
                 if history and len(history) > 1:
-                    import pandas as pd
                     df = pd.DataFrame(history, columns=['price', 'timestamp'])
                     df['timestamp'] = pd.to_datetime(df['timestamp'])
                     st.line_chart(df.set_index('timestamp')['price'])
