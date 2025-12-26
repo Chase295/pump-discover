@@ -771,10 +771,10 @@ with tab2:
                 st.success("✅ Konfiguration auf Standard zurückgesetzt!")
                 st.warning("⚠️ Bitte Service neu starten, damit die Änderungen wirksam werden.")
                 st.rerun()
-    
-    # DB-Verbindungstest (außerhalb des Forms)
-    st.subheader("🔍 Datenbank-Verbindung testen")
-    if st.button("🔍 DB-Verbindung testen", type="secondary", key="db_test_button"):
+
+# DB-Verbindungstest (außerhalb des Forms)
+st.subheader("🔍 Datenbank-Verbindung testen")
+if st.button("🔍 DB-Verbindung testen", type="secondary", key="db_test_button"):
         with st.spinner("Teste Datenbank-Verbindung..."):
             db_status = check_database_connection()
             if db_status['connected']:
@@ -793,9 +793,9 @@ with tab2:
                     st.info("ℹ️ Tabelle 'ref_coin_phases' fehlt (optional)")
             else:
                 st.error(f"❌ Datenbank-Verbindung fehlgeschlagen: {db_status.get('error', 'Unbekannter Fehler')}")
-    
-    # Neustart-Button außerhalb des Forms (wenn Konfiguration gespeichert wurde)
-    if st.session_state.get("config_saved", False):
+
+# Neustart-Button außerhalb des Forms (wenn Konfiguration gespeichert wurde)
+if st.session_state.get("config_saved", False):
         st.divider()
         st.subheader("🔄 Service-Neustart")
         col1, col2 = st.columns([2, 1])
@@ -817,10 +817,10 @@ with tab2:
                             st.info("💡 **Coolify:** Falls das nicht funktioniert, starte den 'api' Service im Coolify-Dashboard neu.")
                         else:
                             st.info("💡 Du kannst den Service auch manuell neu starten: `docker compose restart relay`")
-    
-    # Aktuelle Konfiguration anzeigen
-    st.subheader("📄 Aktuelle Konfiguration")
-    st.json(config)
+
+# Aktuelle Konfiguration anzeigen
+st.subheader("📄 Aktuelle Konfiguration")
+st.json(config)
 
 # Logs Tab
 with tab3:
