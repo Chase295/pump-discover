@@ -113,12 +113,11 @@ RELAY_PORT=8000
 UI_PORT=8501
 """
     
-    # Speichere .env Datei
-    # Die .env Datei sollte als Volume gemountet sein: ./.env:/app/.env:rw
+    # Speichere .env Datei in Config-Volume (wird vom Relay-Service geladen)
     env_paths = [
-        "/app/.env",  # Gemountete .env Datei
+        "/app/config/.env",  # Config-Volume (wichtig für Coolify!)
+        "/app/.env",  # Fallback
         "/app/../.env",  # Projekt-Root (wenn gemountet)
-        "/app/config/.env",  # Fallback
     ]
     
     saved_env = False
@@ -224,11 +223,27 @@ def get_relay_metrics():
         pass
     return None
 
+def reload_config():
+    """Lädt die Konfiguration im Relay-Service neu (ohne Neustart)"""
+    try:
+        response = requests.post(f"http://{RELAY_SERVICE}:{RELAY_PORT}/reload-config", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            return True, data.get("message", "Konfiguration wurde neu geladen")
+        else:
+            return False, f"Fehler: HTTP {response.status_code}"
+    except Exception as e:
+        return False, f"Fehler beim Neuladen: {str(e)}"
+
 def restart_service():
     """Startet Relay-Service neu (über Docker API, damit .env neu geladen wird)"""
-    # Coolify-Modus: Kein Docker Socket verfügbar
+    # Coolify-Modus: Versuche zuerst Config-Neuladen über API
     if COOLIFY_MODE:
-        return False, "⚠️ Coolify-Modus: Service-Neustart muss über das Coolify-Dashboard erfolgen. Gehe zu deinem Coolify-Dashboard und starte den 'api' Service neu."
+        success, message = reload_config()
+        if success:
+            return True, f"✅ {message} (ohne Neustart - funktioniert in Coolify!)"
+        else:
+            return False, f"⚠️ Coolify-Modus: {message}. Falls das nicht funktioniert, starte den 'api' Service im Coolify-Dashboard neu."
     
     try:
         import docker
@@ -457,22 +472,23 @@ with tab1:
     
     # Coolify-Hinweis
     if COOLIFY_MODE:
-        st.info("🌐 **Coolify-Modus aktiv:** Service-Neustart muss über das Coolify-Dashboard erfolgen.")
+        st.info("🌐 **Coolify-Modus aktiv:** Konfiguration wird über API neu geladen (kein Neustart nötig!)")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("🔄 Service neu starten", type="primary", disabled=COOLIFY_MODE):
-            with st.spinner("Service wird neu gestartet..."):
-                success, message = restart_service()
+        if st.button("🔄 Konfiguration neu laden", type="primary"):
+            with st.spinner("Konfiguration wird neu geladen..."):
+                success, message = reload_config()
                 if success:
                     st.success(message)
+                    st.info("💡 Die neue Konfiguration ist jetzt aktiv! Kein Neustart nötig.")
                     time.sleep(2)
                     st.rerun()
                 else:
                     st.error(message)
                     if COOLIFY_MODE:
-                        st.info("💡 **Hinweis:** In Coolify musst du den Service über das Dashboard neu starten.")
+                        st.info("💡 **Hinweis:** Falls das nicht funktioniert, starte den 'api' Service im Coolify-Dashboard neu.")
     
     with col2:
         if st.button("🔄 Seite aktualisieren"):
@@ -587,19 +603,19 @@ with tab2:
         with col1:
             st.info("💡 Die Konfiguration wurde gespeichert. Starte den Relay-Service neu, damit die neuen Werte geladen werden.")
         with col2:
-            if st.button("🔄 Relay-Service neu starten", type="primary", use_container_width=True, disabled=COOLIFY_MODE):
-                with st.spinner("Relay-Service wird neu gestartet..."):
-                    success, message = restart_service()
+            if st.button("🔄 Konfiguration neu laden", type="primary", use_container_width=True):
+                with st.spinner("Konfiguration wird neu geladen..."):
+                    success, message = reload_config()
                     if success:
                         st.success(message)
-                        st.info("⏳ Bitte warte 5-10 Sekunden, bis der Service vollständig neu gestartet ist.")
+                        st.info("💡 Die neue Konfiguration ist jetzt aktiv! Kein Neustart nötig.")
                         st.session_state.config_saved = False  # Reset Flag
-                        time.sleep(3)
+                        time.sleep(2)
                         st.rerun()
                     else:
                         st.error(message)
                         if COOLIFY_MODE:
-                            st.info("💡 **Coolify:** Gehe zu deinem Coolify-Dashboard und starte den 'api' Service neu, damit die neuen Environment Variables geladen werden.")
+                            st.info("💡 **Coolify:** Falls das nicht funktioniert, starte den 'api' Service im Coolify-Dashboard neu.")
                         else:
                             st.info("💡 Du kannst den Service auch manuell neu starten: `docker compose restart relay`")
     

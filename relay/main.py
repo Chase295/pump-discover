@@ -10,20 +10,84 @@ from aiohttp import web
 from prometheus_client import Counter, Gauge, Histogram, generate_latest
 from datetime import datetime
 
-# Konfiguration aus Environment Variables
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", "10"))
-BATCH_TIMEOUT = int(os.getenv("BATCH_TIMEOUT", "30"))
-N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "").strip()  # Leer als Default, damit klar ist wenn nicht gesetzt
-N8N_WEBHOOK_METHOD = os.getenv("N8N_WEBHOOK_METHOD", "POST").upper()  # POST oder GET
-WS_RETRY_DELAY = int(os.getenv("WS_RETRY_DELAY", "3"))
-WS_MAX_RETRY_DELAY = int(os.getenv("WS_MAX_RETRY_DELAY", "60"))
-N8N_RETRY_DELAY = int(os.getenv("N8N_RETRY_DELAY", "5"))
-HEALTH_PORT = int(os.getenv("HEALTH_PORT", "8000"))
-WS_PING_INTERVAL = int(os.getenv("WS_PING_INTERVAL", "20"))
-WS_PING_TIMEOUT = int(os.getenv("WS_PING_TIMEOUT", "10"))
-WS_CONNECTION_TIMEOUT = int(os.getenv("WS_CONNECTION_TIMEOUT", "30"))
-WS_URI = os.getenv("WS_URI", "wss://pumpportal.fun/api/data")
-BAD_NAMES_PATTERN = os.getenv("BAD_NAMES_PATTERN", "test|bot|rug|scam|cant|honey|faucet")
+# Globale Konfigurationsvariablen (werden beim Start geladen)
+BATCH_SIZE = 10
+BATCH_TIMEOUT = 30
+N8N_WEBHOOK_URL = ""
+N8N_WEBHOOK_METHOD = "POST"
+WS_RETRY_DELAY = 3
+WS_MAX_RETRY_DELAY = 60
+N8N_RETRY_DELAY = 5
+HEALTH_PORT = 8000
+WS_PING_INTERVAL = 20
+WS_PING_TIMEOUT = 10
+WS_CONNECTION_TIMEOUT = 30
+WS_URI = "wss://pumpportal.fun/api/data"
+BAD_NAMES_PATTERN = "test|bot|rug|scam|cant|honey|faucet"
+
+def load_config():
+    """Lädt Konfiguration aus Environment Variables und Config-Datei (Volume)"""
+    global BATCH_SIZE, BATCH_TIMEOUT, N8N_WEBHOOK_URL, N8N_WEBHOOK_METHOD
+    global WS_RETRY_DELAY, WS_MAX_RETRY_DELAY, N8N_RETRY_DELAY, HEALTH_PORT
+    global WS_PING_INTERVAL, WS_PING_TIMEOUT, WS_CONNECTION_TIMEOUT, WS_URI, BAD_NAMES_PATTERN
+    
+    # 1. Lade aus Environment Variables (Coolify)
+    BATCH_SIZE = int(os.getenv("BATCH_SIZE", "10"))
+    BATCH_TIMEOUT = int(os.getenv("BATCH_TIMEOUT", "30"))
+    N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "").strip()
+    N8N_WEBHOOK_METHOD = os.getenv("N8N_WEBHOOK_METHOD", "POST").upper()
+    WS_RETRY_DELAY = int(os.getenv("WS_RETRY_DELAY", "3"))
+    WS_MAX_RETRY_DELAY = int(os.getenv("WS_MAX_RETRY_DELAY", "60"))
+    N8N_RETRY_DELAY = int(os.getenv("N8N_RETRY_DELAY", "5"))
+    HEALTH_PORT = int(os.getenv("HEALTH_PORT", "8000"))
+    WS_PING_INTERVAL = int(os.getenv("WS_PING_INTERVAL", "20"))
+    WS_PING_TIMEOUT = int(os.getenv("WS_PING_TIMEOUT", "10"))
+    WS_CONNECTION_TIMEOUT = int(os.getenv("WS_CONNECTION_TIMEOUT", "30"))
+    WS_URI = os.getenv("WS_URI", "wss://pumpportal.fun/api/data")
+    BAD_NAMES_PATTERN = os.getenv("BAD_NAMES_PATTERN", "test|bot|rug|scam|cant|honey|faucet")
+    
+    # 2. Überschreibe mit Config-Datei aus Volume (wenn vorhanden)
+    config_file = "/app/config/.env"
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        key = key.strip()
+                        value = value.strip().strip('"').strip("'")
+                        
+                        if key == "BATCH_SIZE" and value.isdigit():
+                            BATCH_SIZE = int(value)
+                        elif key == "BATCH_TIMEOUT" and value.isdigit():
+                            BATCH_TIMEOUT = int(value)
+                        elif key == "N8N_WEBHOOK_URL":
+                            N8N_WEBHOOK_URL = value
+                        elif key == "N8N_WEBHOOK_METHOD":
+                            N8N_WEBHOOK_METHOD = value.upper()
+                        elif key == "WS_RETRY_DELAY" and value.isdigit():
+                            WS_RETRY_DELAY = int(value)
+                        elif key == "WS_MAX_RETRY_DELAY" and value.isdigit():
+                            WS_MAX_RETRY_DELAY = int(value)
+                        elif key == "N8N_RETRY_DELAY" and value.isdigit():
+                            N8N_RETRY_DELAY = int(value)
+                        elif key == "WS_PING_INTERVAL" and value.isdigit():
+                            WS_PING_INTERVAL = int(value)
+                        elif key == "WS_PING_TIMEOUT" and value.isdigit():
+                            WS_PING_TIMEOUT = int(value)
+                        elif key == "WS_CONNECTION_TIMEOUT" and value.isdigit():
+                            WS_CONNECTION_TIMEOUT = int(value)
+                        elif key == "WS_URI":
+                            WS_URI = value
+                        elif key == "BAD_NAMES_PATTERN":
+                            BAD_NAMES_PATTERN = value
+        except Exception as e:
+            print(f"⚠️ Fehler beim Laden der Config-Datei: {e}", flush=True)
+    
+    # Aktualisiere BAD_NAMES Regex
+    global BAD_NAMES
+    BAD_NAMES = re.compile(rf'({BAD_NAMES_PATTERN})', re.IGNORECASE)
 
 BAD_NAMES = re.compile(rf'({BAD_NAMES_PATTERN})', re.IGNORECASE)
 
@@ -119,13 +183,31 @@ async def logs_handler(request):
         "requested_lines": lines
     })
 
+async def reload_config_handler(request):
+    """Lädt die Konfiguration neu (ohne Neustart)"""
+    try:
+        load_config()
+        add_log("🔄 Konfiguration wurde neu geladen!")
+        return web.json_response({
+            "status": "success",
+            "message": "Konfiguration wurde neu geladen",
+            "n8n_webhook_url": N8N_WEBHOOK_URL if N8N_WEBHOOK_URL else "NICHT GESETZT"
+        })
+    except Exception as e:
+        add_log(f"❌ Fehler beim Neuladen der Konfiguration: {e}")
+        return web.json_response({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
 async def start_health_server():
     """Startet Health + Metrics Server"""
     app = web.Application()
     app.add_routes([
         web.get("/health", health_check),
         web.get("/metrics", metrics_handler),
-        web.get("/logs", logs_handler)
+        web.get("/logs", logs_handler),
+        web.post("/reload-config", reload_config_handler)
     ])
     runner = web.AppRunner(app)
     await runner.setup()
@@ -383,6 +465,9 @@ async def listen_and_relay():
 
 async def main():
     """Hauptfunktion"""
+    # Lade Konfiguration beim Start
+    load_config()
+    
     add_log("=" * 60)
     add_log("🚀 PUMP DISCOVER RELAY - Starte...")
     add_log("=" * 60)
