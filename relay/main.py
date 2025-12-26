@@ -179,8 +179,10 @@ async def logs_handler(request):
         lines = int(request.query.get("lines", "100"))
         # Hole die letzten N Zeilen (neueste zuerst)
         if log_buffer:
+            # Neueste Logs sind am Ende des Buffers
             logs = log_buffer[-lines:] if lines <= len(log_buffer) else log_buffer
-            logs.reverse()  # Neueste oben
+            # Umkehren: Neueste oben (letzte Einträge zuerst)
+            logs.reverse()
         else:
             logs = ["[Keine Logs verfügbar - Service startet gerade...]"]
         

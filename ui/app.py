@@ -630,20 +630,37 @@ with tab2:
 
 # Logs Tab
 with tab3:
+    st.subheader("📋 Service Logs")
     
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        lines = st.number_input("Anzahl Zeilen", min_value=10, max_value=1000, value=100, step=10)
+        lines = st.number_input("Anzahl Zeilen", min_value=10, max_value=1000, value=100, step=10, key="logs_lines_input")
     
     with col2:
-        if st.button("🔄 Logs aktualisieren"):
+        refresh_logs = st.button("🔄 Logs aktualisieren", key="refresh_logs_button")
+        if refresh_logs:
             st.rerun()
     
+    # Logs abrufen
     logs = get_service_logs(lines=lines)
-    st.text_area("Service Logs", logs, height=600, key="logs_display")
     
-    if st.checkbox("🔄 Auto-Refresh Logs (10s)"):
+    # Stelle sicher, dass Logs als String vorliegen
+    if isinstance(logs, list):
+        logs = '\n'.join(logs)
+    
+    # Zeige Logs an (neueste oben)
+    st.text_area(
+        "Service Logs (neueste oben)",
+        logs,
+        height=600,
+        key="logs_display",
+        help="Die neuesten Logs stehen oben, die ältesten unten."
+    )
+    
+    # Auto-Refresh
+    auto_refresh = st.checkbox("🔄 Auto-Refresh Logs (10s)", key="auto_refresh_logs")
+    if auto_refresh:
         time.sleep(10)
         st.rerun()
 
