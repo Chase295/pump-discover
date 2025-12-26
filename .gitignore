@@ -1,0 +1,47 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Config
+config/config.yaml
+config/*.yaml
+
+# Scripts (optional - können auch committed werden)
+# scripts/*.pyc
+# scripts/__pycache__/
+
+# Docker
+*.log
+docker-compose.override.yml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Backup
+*.backup
+*.bak
+*-backup-*.tar.gz
+

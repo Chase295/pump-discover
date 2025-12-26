@@ -1,0 +1,171 @@
+openapi: 3.0.3
+info:
+  title: Pump Discover API
+  description: |
+    API für den Pump Discover Relay Service.
+    
+    Der Service verbindet sich mit dem Pump.fun WebSocket und leitet neue Token-Erstellungen
+    an n8n weiter. Die API bietet Health-Checks und Prometheus-Metriken.
+  version: 1.0.0
+  contact:
+    name: Pump Discover
+    url: https://github.com/your-repo/pump-discover
+
+servers:
+  - url: http://localhost:8000
+    description: Lokaler Development Server
+  - url: http://pump-discover-relay:8000
+    description: Docker Container (internes Netzwerk)
+
+tags:
+  - name: Health
+    description: Health-Check Endpoints
+  - name: Metrics
+    description: Prometheus Metriken
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health-Check Endpoint
+      description: |
+        Gibt den aktuellen Gesundheitsstatus des Relay-Services zurück.
+        
+        - **status**: "healthy" wenn WebSocket verbunden, sonst "degraded"
+        - **ws_connected**: WebSocket-Verbindungsstatus
+        - **n8n_available**: n8n-Verfügbarkeit
+        - **uptime_seconds**: Uptime in Sekunden
+        - **total_coins**: Gesamt empfangene Coins
+        - **total_batches**: Gesamt gesendete Batches
+        - **last_coin_ago**: Sekunden seit letztem empfangenen Coin
+        - **last_message_ago**: Sekunden seit letzter WebSocket-Nachricht
+        - **reconnect_count**: Anzahl WebSocket-Reconnects
+        - **last_error**: Letzter Fehler (falls vorhanden)
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service ist gesund (WebSocket verbunden)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                ws_connected: true
+                n8n_available: true
+                uptime_seconds: 3600
+                total_coins: 150
+                total_batches: 15
+                last_coin_ago: 5
+                last_message_ago: 2
+                reconnect_count: 0
+                last_error: null
+        '503':
+          description: Service ist degradiert (WebSocket nicht verbunden)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "degraded"
+                ws_connected: false
+                n8n_available: false
+                uptime_seconds: 3600
+                total_coins: 150
+                total_batches: 15
+                last_coin_ago: null
+                last_message_ago: null
+                reconnect_count: 3
+                last_error: "ws_closed: Connection closed"
+
+  /metrics:
+    get:
+      tags:
+        - Metrics
+      summary: Prometheus Metriken
+      description: |
+        Gibt Prometheus-kompatible Metriken zurück.
+        
+        **Wichtige Metriken:**
+        - `pumpfun_coins_received_total`: Gesamt empfangene Coins
+        - `pumpfun_coins_sent_total`: Gesamt gesendete Coins
+        - `pumpfun_coins_filtered_total`: Gefilterte Coins (nach Grund)
+        - `pumpfun_batches_sent_total`: Gesamt gesendete Batches
+        - `pumpfun_ws_reconnects_total`: WebSocket Reconnects
+        - `pumpfun_ws_connected`: WebSocket Verbindungsstatus (1=connected)
+        - `pumpfun_n8n_available`: n8n Verfügbarkeit (1=available)
+        - `pumpfun_buffer_size`: Aktuelle Buffer-Größe
+        - `pumpfun_uptime_seconds`: Uptime in Sekunden
+        - `pumpfun_last_coin_timestamp`: Timestamp des letzten empfangenen Coins
+        - `pumpfun_connection_duration_seconds`: Dauer der aktuellen Verbindung
+        - `pumpfun_batch_send_duration_seconds`: Histogram für Batch-Versand-Dauer
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Prometheus Metriken im Text-Format
+          content:
+            text/plain; version=0.0.4; charset=utf-8:
+              schema:
+                type: string
+                example: |
+                  # HELP pumpfun_coins_received_total Anzahl empfangener Coins
+                  # TYPE pumpfun_coins_received_total counter
+                  pumpfun_coins_received_total 150.0
+                  
+                  # HELP pumpfun_coins_sent_total Anzahl an n8n gesendeter Coins
+                  # TYPE pumpfun_coins_sent_total counter
+                  pumpfun_coins_sent_total 150.0
+                  
+                  # HELP pumpfun_ws_connected WebSocket Verbindungsstatus (1=connected)
+                  # TYPE pumpfun_ws_connected gauge
+                  pumpfun_ws_connected 1.0
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - ws_connected
+        - n8n_available
+        - uptime_seconds
+        - total_coins
+        - total_batches
+        - reconnect_count
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded]
+          description: Gesamtstatus des Services
+        ws_connected:
+          type: boolean
+          description: WebSocket-Verbindungsstatus
+        n8n_available:
+          type: boolean
+          description: n8n-Verfügbarkeit
+        uptime_seconds:
+          type: integer
+          description: Uptime in Sekunden
+        total_coins:
+          type: integer
+          description: Gesamt empfangene Coins
+        total_batches:
+          type: integer
+          description: Gesamt gesendete Batches
+        last_coin_ago:
+          type: integer
+          nullable: true
+          description: Sekunden seit letztem empfangenen Coin (null wenn noch kein Coin empfangen)
+        last_message_ago:
+          type: integer
+          nullable: true
+          description: Sekunden seit letzter WebSocket-Nachricht (null wenn noch keine Nachricht)
+        reconnect_count:
+          type: integer
+          description: Anzahl WebSocket-Reconnects
+        last_error:
+          type: string
+          nullable: true
+          description: Letzter Fehler (null wenn kein Fehler)
+

@@ -1,0 +1,67 @@
+services:
+  relay:
+    build:
+      context: ./relay
+      dockerfile: Dockerfile
+    container_name: pump-discover-relay
+    restart: unless-stopped
+    environment:
+      - BATCH_SIZE=${BATCH_SIZE:-10}
+      - BATCH_TIMEOUT=${BATCH_TIMEOUT:-30}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL:-}
+      - N8N_WEBHOOK_METHOD=${N8N_WEBHOOK_METHOD:-POST}
+      - WS_RETRY_DELAY=${WS_RETRY_DELAY:-3}
+      - WS_MAX_RETRY_DELAY=${WS_MAX_RETRY_DELAY:-60}
+      - N8N_RETRY_DELAY=${N8N_RETRY_DELAY:-5}
+      - WS_PING_INTERVAL=${WS_PING_INTERVAL:-20}
+      - WS_PING_TIMEOUT=${WS_PING_TIMEOUT:-10}
+      - WS_CONNECTION_TIMEOUT=${WS_CONNECTION_TIMEOUT:-30}
+      - WS_URI=${WS_URI:-wss://pumpportal.fun/api/data}
+      - BAD_NAMES_PATTERN=${BAD_NAMES_PATTERN:-test|bot|rug|scam|cant|honey|faucet}
+      - HEALTH_PORT=${HEALTH_PORT:-8000}
+    ports:
+      # API & Metrics Port (Health-Check + Prometheus Metrics)
+      # Externer Port: ${RELAY_PORT:-8000} → Interner Port: 8000
+      # Endpoints: http://localhost:${RELAY_PORT}/health und http://localhost:${RELAY_PORT}/metrics
+      - "${RELAY_PORT:-8000}:8000"
+    volumes:
+      - ./config:/app/config:ro
+    networks:
+      - pump-discover-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    container_name: pump-discover-ui
+    restart: unless-stopped
+    environment:
+      - RELAY_SERVICE=relay
+      - RELAY_PORT=8000
+    ports:
+      # Streamlit UI Port
+      # Externer Port: ${UI_PORT:-8501} → Interner Port: 8501
+      # URL: http://localhost:${UI_PORT}
+      - "${UI_PORT:-8501}:8501"
+    volumes:
+      - ./config:/app/config:rw
+      - ./.env:/app/.env:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - pump-discover-network
+    depends_on:
+      - relay
+
+networks:
+  pump-discover-network:
+    driver: bridge
+
+volumes:
+  config:
+
