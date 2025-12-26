@@ -246,12 +246,12 @@ COMMENT ON COLUMN ref_coin_phases.min_age_minutes IS 'Minimales Alter in Minuten
 COMMENT ON COLUMN ref_coin_phases.max_age_minutes IS 'Maximales Alter in Minuten für diese Phase';
 
 -- ============================================================================
--- 4. EXCHANGE_RATES - Marktstimmung ("Wasserstand") für KI-Analyse
+-- 4. COIN_METRICS - Marktstimmung ("Wasserstand") für KI-Analyse
 -- ============================================================================
 
-DROP TABLE IF EXISTS exchange_rates CASCADE;
+DROP TABLE IF EXISTS coin_metrics CASCADE;
 
-CREATE TABLE exchange_rates (
+CREATE TABLE coin_metrics (
     id SERIAL PRIMARY KEY,
     created_at TIMESTAMPTZ DEFAULT NOW(),   -- Zeitstempel des Snapshots
     sol_price_usd NUMERIC(20, 6),            -- WICHTIG: Der "Wasserstand" (z.B. 145.50)
@@ -262,24 +262,24 @@ CREATE TABLE exchange_rates (
 );
 
 -- ============================================================================
--- INDEXE für exchange_rates
+-- INDEXE für coin_metrics
 -- ============================================================================
 
-CREATE INDEX idx_exchange_rates_created_at ON exchange_rates(created_at DESC);
-CREATE INDEX idx_exchange_rates_blockchain_id ON exchange_rates(blockchain_id);
+CREATE INDEX idx_coin_metrics_created_at ON coin_metrics(created_at DESC);
+CREATE INDEX idx_coin_metrics_blockchain_id ON coin_metrics(blockchain_id);
 
 -- ============================================================================
--- KOMMENTARE für exchange_rates
+-- KOMMENTARE für coin_metrics
 -- ============================================================================
 
-COMMENT ON TABLE exchange_rates IS 'Marktstimmung ("Wasserstand") - Referenztabelle für KI-Training zur Unterscheidung von echten Token-Pumps vs. allgemeinen Marktbewegungen';
-COMMENT ON COLUMN exchange_rates.id IS 'Eindeutige ID (SERIAL)';
-COMMENT ON COLUMN exchange_rates.created_at IS 'Zeitstempel des Snapshots';
-COMMENT ON COLUMN exchange_rates.sol_price_usd IS 'WICHTIG: Der "Wasserstand" - Aktueller SOL-Preis in USD (z.B. 145.50). Ermöglicht KI zu lernen: "Token steigt, während SOL stabil ist" → Bullish vs. "Token steigt, weil SOL um 5% steigt" → Neutral';
-COMMENT ON COLUMN exchange_rates.usd_to_eur_rate IS 'Währungsumrechnung USD zu EUR';
-COMMENT ON COLUMN exchange_rates.native_currency_price_usd IS 'Redundant zu sol_price (für Mapping)';
-COMMENT ON COLUMN exchange_rates.blockchain_id IS 'ID der Chain (1 = Solana)';
-COMMENT ON COLUMN exchange_rates.source IS 'Herkunft (z.B. "Scout Workflow", "Exchange Rates Workflow")';
+COMMENT ON TABLE coin_metrics IS 'Marktstimmung ("Wasserstand") - Referenztabelle für KI-Training zur Unterscheidung von echten Token-Pumps vs. allgemeinen Marktbewegungen';
+COMMENT ON COLUMN coin_metrics.id IS 'Eindeutige ID (SERIAL)';
+COMMENT ON COLUMN coin_metrics.created_at IS 'Zeitstempel des Snapshots';
+COMMENT ON COLUMN coin_metrics.sol_price_usd IS 'WICHTIG: Der "Wasserstand" - Aktueller SOL-Preis in USD (z.B. 145.50). Ermöglicht KI zu lernen: "Token steigt, während SOL stabil ist" → Bullish vs. "Token steigt, weil SOL um 5% steigt" → Neutral';
+COMMENT ON COLUMN coin_metrics.usd_to_eur_rate IS 'Währungsumrechnung USD zu EUR';
+COMMENT ON COLUMN coin_metrics.native_currency_price_usd IS 'Redundant zu sol_price (für Mapping)';
+COMMENT ON COLUMN coin_metrics.blockchain_id IS 'ID der Chain (1 = Solana)';
+COMMENT ON COLUMN coin_metrics.source IS 'Herkunft (z.B. "Scout Workflow", "Exchange Rates Workflow")';
 
 -- ============================================================================
 -- FERTIG!
@@ -289,7 +289,7 @@ COMMENT ON COLUMN exchange_rates.source IS 'Herkunft (z.B. "Scout Workflow", "Ex
 -- ✅ discovered_coins - Haupttabelle für entdeckte Tokens
 -- ✅ coin_streams - Tabelle für kontinuierliches Metriken-Tracking
 -- ✅ ref_coin_phases - Referenztabelle für Coin-Phasen
--- ✅ exchange_rates - Marktstimmung ("Wasserstand") für KI-Analyse
+-- ✅ coin_metrics - Marktstimmung ("Wasserstand") für KI-Analyse
 --
 -- ============================================================================
 

@@ -373,7 +373,7 @@ def check_database_connection():
             'discovered_coins': False,
             'coin_streams': False,
             'ref_coin_phases': False,
-            'exchange_rates': False
+            'coin_metrics': False
         },
         'error': None,
         'configured': False
@@ -395,7 +395,7 @@ def check_database_connection():
             SELECT table_name 
             FROM information_schema.tables 
             WHERE table_schema = 'public' 
-            AND table_name IN ('discovered_coins', 'coin_streams', 'ref_coin_phases', 'exchange_rates')
+            AND table_name IN ('discovered_coins', 'coin_streams', 'ref_coin_phases', 'coin_metrics')
         """)
         
         existing_tables = [row[0] for row in cursor.fetchall()]
@@ -404,7 +404,7 @@ def check_database_connection():
         result['tables']['discovered_coins'] = 'discovered_coins' in existing_tables
         result['tables']['coin_streams'] = 'coin_streams' in existing_tables
         result['tables']['ref_coin_phases'] = 'ref_coin_phases' in existing_tables
-        result['tables']['exchange_rates'] = 'exchange_rates' in existing_tables
+        result['tables']['coin_metrics'] = 'coin_metrics' in existing_tables
         
         cursor.close()
         conn.close()
@@ -579,9 +579,75 @@ with tab1:
     else:
         st.warning("⚠️ Metriken konnten nicht abgerufen werden. Bitte prüfe, ob der Relay-Service läuft.")
     
+    # SOL-Kurs Übersicht (wenn DB verbunden)
+    db_status = check_database_connection()
+    if db_status['configured'] and db_status['connected'] and db_status['tables'].get('coin_metrics', False):
+        st.subheader("💹 SOL-Kurs Übersicht")
+        try:
+            config = load_config()
+            db_config_local = {
+                'host': config.get('DB_HOST', os.getenv('DB_HOST', 'localhost')),
+                'port': config.get('DB_PORT', os.getenv('DB_PORT', '5432')),
+                'database': config.get('DB_NAME', os.getenv('DB_NAME', 'pump_discover')),
+                'user': config.get('DB_USER', os.getenv('DB_USER', 'postgres')),
+                'password': config.get('DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+            }
+            
+            conn = psycopg2.connect(**db_config_local)
+            cursor = conn.cursor()
+            
+            # Aktueller SOL-Preis
+            cursor.execute("""
+                SELECT sol_price_usd, created_at 
+                FROM coin_metrics 
+                ORDER BY created_at DESC 
+                LIMIT 1
+            """)
+            current_rate = cursor.fetchone()
+            
+            # Verlauf der letzten 5 Minuten
+            cursor.execute("""
+                SELECT sol_price_usd, created_at 
+                FROM coin_metrics 
+                WHERE created_at >= NOW() - INTERVAL '5 minutes'
+                ORDER BY created_at ASC
+            """)
+            history = cursor.fetchall()
+            
+            cursor.close()
+            conn.close()
+            
+            if current_rate and current_rate[0]:
+                col_sol1, col_sol2, col_sol3 = st.columns(3)
+                with col_sol1:
+                    st.metric("Aktueller SOL-Preis", f"${current_rate[0]:.2f}")
+                with col_sol2:
+                    if history and len(history) > 1:
+                        first_price = history[0][0]
+                        change = current_rate[0] - first_price
+                        change_pct = (change / first_price * 100) if first_price else 0
+                        st.metric("Änderung (5 Min)", f"${change:+.2f}", f"{change_pct:+.2f}%")
+                    else:
+                        st.metric("Änderung (5 Min)", "N/A")
+                with col_sol3:
+                    st.metric("Datenpunkte", f"{len(history)}")
+                
+                # Chart für Verlauf
+                if history and len(history) > 1:
+                    import pandas as pd
+                    df = pd.DataFrame(history, columns=['price', 'timestamp'])
+                    df['timestamp'] = pd.to_datetime(df['timestamp'])
+                    st.line_chart(df.set_index('timestamp')['price'])
+                    st.caption(f"SOL-Preis Verlauf der letzten 5 Minuten ({len(history)} Datenpunkte)")
+                else:
+                    st.info("ℹ️ Noch nicht genug Daten für Verlauf (benötigt mindestens 2 Datenpunkte)")
+            else:
+                st.info("ℹ️ Noch keine SOL-Kurs-Daten verfügbar")
+        except Exception as e:
+            st.warning(f"⚠️ SOL-Kurs-Daten nicht verfügbar: {str(e)[:100]}")
+    
     # Datenbank-Verbindungsprüfung
     st.subheader("🗄️ Datenbank-Status")
-    db_status = check_database_connection()
     
     if not db_status['configured']:
         st.info("ℹ️ DB-Credentials nicht konfiguriert. Bitte konfiguriere die Datenbank-Verbindung im **Konfigurations-Tab** (⚙️ Konfiguration).")
@@ -614,32 +680,36 @@ with tab1:
             else:
                 st.warning("⚠️ ref_coin_phases fehlt")
         
-        # Exchange Rates Tabelle
+        # Coin Metrics Tabelle (Exchange Rates)
         st.markdown("---")
         col_ex1, col_ex2 = st.columns(2)
         with col_ex1:
-            if db_status['tables']['exchange_rates']:
-                st.success("✅ exchange_rates")
+            if db_status['tables']['coin_metrics']:
+                st.success("✅ coin_metrics")
             else:
-                st.warning("⚠️ exchange_rates fehlt")
+                st.warning("⚠️ coin_metrics fehlt")
         
         with col_ex2:
-            if db_status['tables']['exchange_rates']:
-                # Hole aktuelle Exchange Rates Metriken
+            if db_status['tables']['coin_metrics']:
+                # Hole aktuelle Coin Metrics Metriken
                 try:
-                    conn = psycopg2.connect(
-                        host=db_config['host'],
-                        port=db_config['port'],
-                        database=db_config['database'],
-                        user=db_config['user'],
-                        password=db_config['password']
-                    )
+                    # Lade DB-Config erneut (für diesen Scope)
+                    config = load_config()
+                    db_config_local = {
+                        'host': config.get('DB_HOST', os.getenv('DB_HOST', 'localhost')),
+                        'port': config.get('DB_PORT', os.getenv('DB_PORT', '5432')),
+                        'database': config.get('DB_NAME', os.getenv('DB_NAME', 'pump_discover')),
+                        'user': config.get('DB_USER', os.getenv('DB_USER', 'postgres')),
+                        'password': config.get('DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+                    }
+                    
+                    conn = psycopg2.connect(**db_config_local)
                     cursor = conn.cursor()
                     
                     # Letzte Exchange Rate
                     cursor.execute("""
                         SELECT sol_price_usd, created_at 
-                        FROM exchange_rates 
+                        FROM coin_metrics 
                         ORDER BY created_at DESC 
                         LIMIT 1
                     """)
@@ -652,7 +722,7 @@ with tab1:
                             AVG(sol_price_usd) as avg_sol_price,
                             MIN(sol_price_usd) as min_sol_price,
                             MAX(sol_price_usd) as max_sol_price
-                        FROM exchange_rates
+                        FROM coin_metrics
                     """)
                     stats = cursor.fetchone()
                     
@@ -664,7 +734,7 @@ with tab1:
                         if stats and stats[0] > 0:
                             st.caption(f"📊 {stats[0]} Snapshots | Ø ${stats[1]:.2f}" if stats[1] else f"📊 {stats[0]} Snapshots")
                 except Exception as e:
-                    st.caption(f"⚠️ Metriken nicht verfügbar: {str(e)[:30]}")
+                    st.caption(f"⚠️ Metriken nicht verfügbar: {str(e)[:50]}")
     
     # Detaillierte Informationen
     if health:
@@ -846,10 +916,10 @@ with tab2:
                     st.success("✅ Tabelle 'ref_coin_phases' vorhanden")
                 else:
                     st.info("ℹ️ Tabelle 'ref_coin_phases' fehlt (optional)")
-                if db_status['tables']['exchange_rates']:
-                    st.success("✅ Tabelle 'exchange_rates' vorhanden")
+                if db_status['tables']['coin_metrics']:
+                    st.success("✅ Tabelle 'coin_metrics' vorhanden")
                 else:
-                    st.info("ℹ️ Tabelle 'exchange_rates' fehlt (optional - für Marktstimmung)")
+                    st.info("ℹ️ Tabelle 'coin_metrics' fehlt (optional - für Marktstimmung)")
             else:
                 st.error(f"❌ Datenbank-Verbindung fehlgeschlagen: {db_status.get('error', 'Unbekannter Fehler')}")
     
@@ -997,7 +1067,7 @@ with tab5:
             ├─ discovered_coins Tabelle
             ├─ coin_streams Tabelle
             ├─ ref_coin_phases Tabelle
-            └─ exchange_rates Tabelle ⭐ NEU
+            └─ coin_metrics Tabelle ⭐ NEU
     """, language="text")
     
     # Weitergegebene Informationen
@@ -1290,7 +1360,7 @@ with tab5:
     - **Finished** (ID: 99): Ab 24 Std
     - **Graduated** (ID: 100): Graduierte Tokens
     
-    #### `exchange_rates` ⭐ NEU
+    #### `coin_metrics` ⭐ NEU
     **Ziel:** Erfassung der allgemeinen Marktstimmung ("Wasserstand"), um bei der KI-Analyse echte Token-Pumps von allgemeinen Marktbewegungen (z.B. SOL-Crash) zu unterscheiden.
     
     **Struktur:**
