@@ -353,7 +353,10 @@ def get_service_logs(lines=100):
                 continue
         if container:
             logs = container.logs(tail=lines, timestamps=True).decode('utf-8')
-            return logs
+            # Logs umdrehen: Neueste oben
+            log_lines = logs.split('\n')
+            log_lines.reverse()
+            return '\n'.join(log_lines)
         else:
             raise Exception("Container nicht gefunden")
     except ImportError:
@@ -368,7 +371,10 @@ def get_service_logs(lines=100):
                 timeout=10
             )
             if result.returncode == 0:
-                return result.stdout
+                # Logs umdrehen: Neueste oben
+                log_lines = result.stdout.split('\n')
+                log_lines.reverse()
+                return '\n'.join(log_lines)
             else:
                 return f"Fehler beim Abrufen der Logs: {result.stderr}"
         except Exception as e:
