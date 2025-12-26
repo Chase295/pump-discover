@@ -110,6 +110,13 @@ BAD_NAMES_PATTERN={config.get('BAD_NAMES_PATTERN', 'test|bot|rug|scam|cant|honey
 # Health-Check Port
 HEALTH_PORT={config.get('HEALTH_PORT', 8000)}
 
+# Datenbank-Einstellungen (für UI DB-Prüfung)
+DB_HOST={config.get('DB_HOST', 'localhost')}
+DB_PORT={config.get('DB_PORT', 5432)}
+DB_NAME={config.get('DB_NAME', 'pump_discover')}
+DB_USER={config.get('DB_USER', 'postgres')}
+DB_PASSWORD={config.get('DB_PASSWORD', '')}
+
 # Docker Compose Ports
 RELAY_PORT=8000
 UI_PORT=8501
@@ -570,7 +577,7 @@ with tab1:
     db_status = check_database_connection()
     
     if not db_status['configured']:
-        st.info("ℹ️ DB-Credentials nicht konfiguriert. Setze DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD als Environment Variables.")
+        st.info("ℹ️ DB-Credentials nicht konfiguriert. Bitte konfiguriere die Datenbank-Verbindung im **Konfigurations-Tab** (⚙️ Konfiguration).")
     else:
         col_db1, col_db2, col_db3, col_db4 = st.columns(4)
         
