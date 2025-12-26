@@ -1363,7 +1363,7 @@ with tab5:
     **Status:** ✅ Implementiert - wird automatisch berechnet
     """)
     
-    st.subheader("4️⃣ Marktstimmung ("Wasserstand") ⭐ NEU")
+    st.subheader("4️⃣ Marktstimmung (\"Wasserstand\") ⭐ NEU")
     st.markdown("""
     **Ziel:** Erfassung der allgemeinen Marktstimmung ("Wasserstand"), um bei der KI-Analyse echte Token-Pumps von allgemeinen Marktbewegungen (z.B. SOL-Crash) zu unterscheiden.
     
