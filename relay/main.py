@@ -27,6 +27,21 @@ BAD_NAMES_PATTERN = os.getenv("BAD_NAMES_PATTERN", "test|bot|rug|scam|cant|honey
 
 BAD_NAMES = re.compile(rf'({BAD_NAMES_PATTERN})', re.IGNORECASE)
 
+# Logs-Buffer für API-Zugriff
+log_buffer = []
+MAX_LOG_BUFFER_SIZE = 1000  # Maximale Anzahl Log-Zeilen im Buffer
+
+def add_log(message):
+    """Fügt eine Log-Nachricht zum Buffer hinzu"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_entry = f"[{timestamp}] {message}"
+    log_buffer.append(log_entry)
+    # Buffer begrenzen
+    if len(log_buffer) > MAX_LOG_BUFFER_SIZE:
+        log_buffer.pop(0)
+    # Auch auf stdout ausgeben (für Docker Logs)
+    print(log_entry, flush=True)
+
 # Prometheus Metrics
 coins_received = Counter("pumpfun_coins_received_total", "Anzahl empfangener Coins")
 coins_filtered = Counter("pumpfun_coins_filtered_total", "Anzahl gefilterter Coins", ["reason"])
@@ -91,18 +106,31 @@ async def health_check(request):
     status_code = 200 if ws_status else 503
     return web.json_response(health_data, status=status_code)
 
+async def logs_handler(request):
+    """Logs Endpoint für API-Zugriff"""
+    lines = int(request.query.get("lines", "100"))
+    # Hole die letzten N Zeilen (neueste zuerst)
+    logs = log_buffer[-lines:] if lines <= len(log_buffer) else log_buffer
+    logs.reverse()  # Neueste oben
+    return web.json_response({
+        "logs": logs,
+        "total_lines": len(log_buffer),
+        "requested_lines": lines
+    })
+
 async def start_health_server():
     """Startet Health + Metrics Server"""
     app = web.Application()
     app.add_routes([
         web.get("/health", health_check),
-        web.get("/metrics", metrics_handler)
+        web.get("/metrics", metrics_handler),
+        web.get("/logs", logs_handler)
     ])
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", HEALTH_PORT)
-    print(f"🏥 Health-Check Server läuft auf Port {HEALTH_PORT}", flush=True)
-    print(f"📊 Prometheus Metrics auf http://localhost:{HEALTH_PORT}/metrics", flush=True)
+    add_log(f"🏥 Health-Check Server läuft auf Port {HEALTH_PORT}")
+    add_log(f"📊 Prometheus Metrics auf http://localhost:{HEALTH_PORT}/metrics")
     await site.start()
 
 async def send_to_n8n(session, batch):
@@ -147,7 +175,7 @@ async def send_to_n8n(session, batch):
                 # Status-Verarbeitung (gleich für GET und POST)
                 if status:
                     if status == 200:
-                        print(f"📦 Paket ({len(batch)} Coins) an n8n übergeben! ✅", flush=True)
+                        add_log(f"📦 Paket ({len(batch)} Coins) an n8n übergeben! ✅")
                         relay_status["n8n_available"] = True
                         relay_status["total_batches"] += 1
                         n8n_available.set(1)
@@ -198,7 +226,7 @@ async def send_to_n8n(session, batch):
 
 async def listen_and_relay():
     """Hauptfunktion mit verbesserter Verbindungsstabilität"""
-    print("🚀 Starte Relay (Mit Spam-Burst-Filter & Prometheus Metrics)...", flush=True)
+    add_log("🚀 Starte Relay (Mit Spam-Burst-Filter & Prometheus Metrics)...")
     buffer = []
     last_flush = time.time()
     reconnect_count = 0
@@ -206,7 +234,7 @@ async def listen_and_relay():
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                print(f"🔌 Verbinde zu Pump.fun... (Versuch #{reconnect_count + 1})", flush=True)
+                    add_log(f"🔌 Verbinde zu Pump.fun... (Versuch #{reconnect_count + 1})")
                 
                 import ssl
                 ssl_context = ssl.create_default_context()
@@ -230,7 +258,7 @@ async def listen_and_relay():
                     relay_status["reconnect_count"] = 0
                     
                     await ws.send(json.dumps({"method": "subscribeNewToken"}))
-                    print("✅ Verbunden! Warte auf Coins...", flush=True)
+                    add_log("✅ Verbunden! Warte auf Coins...")
                     
                     last_message_time = time.time()
                     
@@ -284,7 +312,7 @@ async def listen_and_relay():
                             relay_status["total_coins"] += 1
                             last_coin_timestamp.set(time.time())
                             buffer_size.set(len(buffer))
-                            print(f"➕ {symbol}", end=" ", flush=True)
+                            add_log(f"➕ {symbol}")
                             
                         except asyncio.TimeoutError:
                             if time.time() - last_message_time > WS_CONNECTION_TIMEOUT:

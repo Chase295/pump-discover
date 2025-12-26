@@ -327,18 +327,20 @@ def restart_service():
 
 def get_service_logs(lines=100):
     """Holt Logs vom Relay-Service"""
-    # Coolify-Modus: Kein Docker Socket verfügbar
+    # Coolify-Modus: Logs über API abrufen
     if COOLIFY_MODE:
-        return f"""⚠️ Coolify-Modus: Logs können nicht direkt abgerufen werden.
-
-📋 **Logs anzeigen:**
-1. Gehe zu deinem Coolify-Dashboard
-2. Wähle den 'api' Service
-3. Klicke auf "Logs" um die Logs anzuzeigen
-
-💡 **Alternative:** Du kannst die Logs auch über die Coolify-API abrufen.
-"""
+        try:
+            response = requests.get(f"http://{RELAY_SERVICE}:{RELAY_PORT}/logs?lines={lines}", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                logs = data.get("logs", [])
+                return '\n'.join(logs)
+            else:
+                return f"Fehler beim Abrufen der Logs: HTTP {response.status_code}"
+        except Exception as e:
+            return f"Fehler beim Abrufen der Logs über API: {str(e)}\n\n💡 Falls das nicht funktioniert, verwende die Logs im Coolify-Dashboard."
     
+    # Normale Docker-Methode (wenn Docker Socket verfügbar)
     try:
         import docker
         client = docker.from_env()
