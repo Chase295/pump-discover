@@ -1002,10 +1002,12 @@ with tab5:
     # Datenbankschema
     st.header("🗄️ Datenbankschema")
     
-    st.subheader("Tabelle: `discovered_coins`")
+    st.subheader("Haupttabelle: `discovered_coins`")
     st.markdown("""
     Diese Tabelle speichert den **initialen Snapshot** jedes entdeckten Tokens.
-    Metriken (die sich ändern) werden in einer separaten Tabelle gespeichert (alle 5 Sekunden).
+    Metriken (die sich ändern) werden in einer separaten Tabelle (`coin_streams`) gespeichert (alle 5 Sekunden).
+    
+    **Wichtig:** Diese Tabelle dient als initialer Snapshot. Für kontinuierliches Tracking wird `coin_streams` verwendet.
     """)
     
     with st.expander("📋 Vollständiges Schema anzeigen"):
