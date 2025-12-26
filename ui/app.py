@@ -1095,7 +1095,7 @@ with tab5:
     | `uri` | Metadata URI | `https://ipfs.io/ipfs/...` |
     | `is_mayhem_mode` | Mayhem Mode Flag | `false` |
     | `pool` | Pool-Typ | `pump` |
-    | `phaseId` | Phase ID | `1` |
+    | `phaseId` | Phase ID | `1` → **coin_streams.current_phase_id** (nicht discovered_coins) |
     """)
     
     st.subheader("2️⃣ API-Daten (in n8n abgerufen)")
