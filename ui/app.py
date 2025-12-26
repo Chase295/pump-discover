@@ -772,6 +772,28 @@ with tab2:
                 st.warning("⚠️ Bitte Service neu starten, damit die Änderungen wirksam werden.")
                 st.rerun()
     
+    # DB-Verbindungstest (außerhalb des Forms)
+    st.subheader("🔍 Datenbank-Verbindung testen")
+    if st.button("🔍 DB-Verbindung testen", type="secondary", key="db_test_button"):
+        with st.spinner("Teste Datenbank-Verbindung..."):
+            db_status = check_database_connection()
+            if db_status['connected']:
+                st.success("✅ Datenbank-Verbindung erfolgreich!")
+                if db_status['tables']['discovered_coins']:
+                    st.success("✅ Tabelle 'discovered_coins' vorhanden")
+                else:
+                    st.warning("⚠️ Tabelle 'discovered_coins' fehlt")
+                if db_status['tables']['coin_streams']:
+                    st.success("✅ Tabelle 'coin_streams' vorhanden")
+                else:
+                    st.info("ℹ️ Tabelle 'coin_streams' fehlt (optional)")
+                if db_status['tables']['ref_coin_phases']:
+                    st.success("✅ Tabelle 'ref_coin_phases' vorhanden")
+                else:
+                    st.info("ℹ️ Tabelle 'ref_coin_phases' fehlt (optional)")
+            else:
+                st.error(f"❌ Datenbank-Verbindung fehlgeschlagen: {db_status.get('error', 'Unbekannter Fehler')}")
+    
     # Neustart-Button außerhalb des Forms (wenn Konfiguration gespeichert wurde)
     if st.session_state.get("config_saved", False):
         st.divider()
