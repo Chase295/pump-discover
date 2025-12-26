@@ -771,10 +771,11 @@ with tab2:
                 st.success("✅ Konfiguration auf Standard zurückgesetzt!")
                 st.warning("⚠️ Bitte Service neu starten, damit die Änderungen wirksam werden.")
                 st.rerun()
-
-# DB-Verbindungstest (außerhalb des Forms)
-st.subheader("🔍 Datenbank-Verbindung testen")
-if st.button("🔍 DB-Verbindung testen", type="secondary", key="db_test_button"):
+    
+    # DB-Verbindungstest (außerhalb des Forms)
+    st.divider()
+    st.subheader("🔍 Datenbank-Verbindung testen")
+    if st.button("🔍 DB-Verbindung testen", type="secondary", key="db_test_button"):
         with st.spinner("Teste Datenbank-Verbindung..."):
             db_status = check_database_connection()
             if db_status['connected']:
@@ -793,16 +794,16 @@ if st.button("🔍 DB-Verbindung testen", type="secondary", key="db_test_button"
                     st.info("ℹ️ Tabelle 'ref_coin_phases' fehlt (optional)")
             else:
                 st.error(f"❌ Datenbank-Verbindung fehlgeschlagen: {db_status.get('error', 'Unbekannter Fehler')}")
-
-# Neustart-Button außerhalb des Forms (wenn Konfiguration gespeichert wurde)
-if st.session_state.get("config_saved", False):
+    
+    # Neustart-Button außerhalb des Forms (wenn Konfiguration gespeichert wurde)
+    if st.session_state.get("config_saved", False):
         st.divider()
         st.subheader("🔄 Service-Neustart")
         col1, col2 = st.columns([2, 1])
         with col1:
             st.info("💡 Die Konfiguration wurde gespeichert. Starte den Relay-Service neu, damit die neuen Werte geladen werden.")
         with col2:
-            if st.button("🔄 Konfiguration neu laden", type="primary", use_container_width=True):
+            if st.button("🔄 Konfiguration neu laden", type="primary", use_container_width=True, key="reload_config_button"):
                 with st.spinner("Konfiguration wird neu geladen..."):
                     success, message = reload_config()
                     if success:
@@ -817,10 +818,10 @@ if st.session_state.get("config_saved", False):
                             st.info("💡 **Coolify:** Falls das nicht funktioniert, starte den 'api' Service im Coolify-Dashboard neu.")
                         else:
                             st.info("💡 Du kannst den Service auch manuell neu starten: `docker compose restart relay`")
-
-# Aktuelle Konfiguration anzeigen
-st.subheader("📄 Aktuelle Konfiguration")
-st.json(config)
+    
+    # Aktuelle Konfiguration anzeigen
+    st.subheader("📄 Aktuelle Konfiguration")
+    st.json(config)
 
 # Logs Tab
 with tab3:
