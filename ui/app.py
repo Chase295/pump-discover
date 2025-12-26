@@ -1184,7 +1184,7 @@ with tab5:
         
         #### 7. Graduation
         - `open_market_cap_sol` - Fester Wert für Graduierung (85,000 SOL)
-        - `phase_id` - Phase ID
+        - **HINWEIS:** `phase_id` ist in der `coin_streams` Tabelle, nicht in `discovered_coins`
         
         #### 8. Status Flags
         - `is_mayhem_mode` - Mayhem Mode Flag
@@ -1239,7 +1239,7 @@ with tab5:
     | `uri` | `metadata_uri` | WebSocket |
     | `is_mayhem_mode` | `is_mayhem_mode` | WebSocket |
     | `pool` | `pool_type` | WebSocket |
-    | `phaseId` | `phase_id` | WebSocket |
+    | `phaseId` | `current_phase_id` | WebSocket → **coin_streams** Tabelle (nicht discovered_coins) |
     | `vSolInBondingCurve` | `liquidity_sol` | WebSocket (gleicher Wert) |
     """)
     
