@@ -183,32 +183,32 @@ async def send_to_n8n(session, batch):
                         coins_sent.inc(len(batch))
                         return True
                     elif status == 404:
-                        print(f"❌ n8n Fehler 404: Bitte in n8n auf 'Execute Workflow' klicken!", flush=True)
+                        add_log(f"❌ n8n Fehler 404: Bitte in n8n auf 'Execute Workflow' klicken!")
                         relay_status["n8n_available"] = False
                         relay_status["last_error"] = "n8n_404"
                         n8n_available.set(0)
                         n8n_errors.labels(type="404").inc()
                         return False
                     else:
-                        print(f"⚠️ n8n Status: {status} (Retry {retry_count + 1}/{max_retries})", flush=True)
+                        add_log(f"⚠️ n8n Status: {status} (Retry {retry_count + 1}/{max_retries})")
                         n8n_errors.labels(type=f"status_{status}").inc()
                         retry_count += 1
         except asyncio.TimeoutError:
-            print(f"⚠️ n8n Timeout (Retry {retry_count + 1}/{max_retries})", flush=True)
+            add_log(f"⚠️ n8n Timeout (Retry {retry_count + 1}/{max_retries})")
             relay_status["n8n_available"] = False
             relay_status["last_error"] = "n8n_timeout"
             n8n_available.set(0)
             n8n_errors.labels(type="timeout").inc()
             retry_count += 1
         except aiohttp.ClientError as e:
-            print(f"⚠️ n8n Connection Error: {e} (Retry {retry_count + 1}/{max_retries})", flush=True)
+            add_log(f"⚠️ n8n Connection Error: {e} (Retry {retry_count + 1}/{max_retries})")
             relay_status["n8n_available"] = False
             relay_status["last_error"] = f"n8n_connection: {str(e)[:50]}"
             n8n_available.set(0)
             n8n_errors.labels(type="connection").inc()
             retry_count += 1
         except Exception as e:
-            print(f"⚠️ n8n Unerwarteter Fehler: {e}", flush=True)
+            add_log(f"⚠️ n8n Unerwarteter Fehler: {e}")
             relay_status["n8n_available"] = False
             relay_status["last_error"] = f"n8n_unknown: {str(e)[:50]}"
             n8n_available.set(0)
@@ -221,7 +221,7 @@ async def send_to_n8n(session, batch):
     relay_status["n8n_available"] = False
     relay_status["last_error"] = "n8n_max_retries"
     n8n_available.set(0)
-    print(f"❌ n8n nicht erreichbar nach {max_retries} Versuchen", flush=True)
+    add_log(f"❌ n8n nicht erreichbar nach {max_retries} Versuchen")
     return False
 
 async def listen_and_relay():
@@ -316,22 +316,22 @@ async def listen_and_relay():
                             
                         except asyncio.TimeoutError:
                             if time.time() - last_message_time > WS_CONNECTION_TIMEOUT:
-                                print(f"\n⚠️ Keine Nachrichten seit {WS_CONNECTION_TIMEOUT}s - Reconnect", flush=True)
+                                add_log(f"⚠️ Keine Nachrichten seit {WS_CONNECTION_TIMEOUT}s - Reconnect")
                                 raise websockets.exceptions.ConnectionClosed(1006, "Timeout")
                         
                         except websockets.exceptions.ConnectionClosed as e:
-                            print(f"\n🔌 WebSocket Verbindung geschlossen: {e}", flush=True)
+                            add_log(f"🔌 WebSocket Verbindung geschlossen: {e}")
                             relay_status["ws_connected"] = False
                             relay_status["last_error"] = f"ws_closed: {str(e)[:100]}"
                             ws_connected.set(0)
                             break
                         
                         except json.JSONDecodeError as e:
-                            print(f"\n⚠️ JSON Fehler: {e}", flush=True)
+                            add_log(f"⚠️ JSON Fehler: {e}")
                             continue
                         
                         except Exception as e:
-                            print(f"\n⚠️ WS Receive Error: {e}", flush=True)
+                            add_log(f"⚠️ WS Receive Error: {e}")
                             relay_status["last_error"] = f"ws_error: {str(e)[:100]}"
                             break
                         
@@ -339,7 +339,7 @@ async def listen_and_relay():
                         is_timeout = (time.time() - last_flush) > BATCH_TIMEOUT
                         
                         if buffer and (is_full or is_timeout):
-                            print(f"\n🚚 Sende {len(buffer)} Coins an n8n...", flush=True)
+                            add_log(f"🚚 Sende {len(buffer)} Coins an n8n...")
                             success = await send_to_n8n(session, buffer)
                             if success:
                                 buffer = []
@@ -351,7 +351,7 @@ async def listen_and_relay():
                 relay_status["last_error"] = f"ws_exception: {str(e)[:100]}"
                 ws_connected.set(0)
                 ws_reconnects.inc()
-                print(f"❌ WebSocket Exception: {e}", flush=True)
+                add_log(f"❌ WebSocket Exception: {e}")
                 reconnect_count += 1
                 relay_status["reconnect_count"] = reconnect_count
             
@@ -360,19 +360,19 @@ async def listen_and_relay():
                 relay_status["last_error"] = f"unexpected: {str(e)[:100]}"
                 ws_connected.set(0)
                 ws_reconnects.inc()
-                print(f"❌ Unerwarteter Fehler: {e}", flush=True)
+                add_log(f"❌ Unerwarteter Fehler: {e}")
                 reconnect_count += 1
                 relay_status["reconnect_count"] = reconnect_count
             
             if buffer:
-                print(f"⚠️ Buffer nicht leer ({len(buffer)} Coins). Sende vor Reconnect...", flush=True)
+                add_log(f"⚠️ Buffer nicht leer ({len(buffer)} Coins). Sende vor Reconnect...")
                 await send_to_n8n(session, buffer)
                 buffer = []
                 buffer_size.set(0)
                 last_flush = time.time()
             
             delay = min(WS_RETRY_DELAY * (1 + reconnect_count * 0.5), WS_MAX_RETRY_DELAY)
-            print(f"⏳ Reconnect in {delay:.1f}s...", flush=True)
+            add_log(f"⏳ Reconnect in {delay:.1f}s...")
             await asyncio.sleep(delay)
 
 async def main():
