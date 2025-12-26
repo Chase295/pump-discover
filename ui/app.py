@@ -386,7 +386,7 @@ def get_service_logs(lines=100):
 st.title("🚀 Pump Discover - Control Panel")
 
 # Tabs Navigation
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "⚙️ Konfiguration", "📋 Logs", "📈 Metriken"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Dashboard", "⚙️ Konfiguration", "📋 Logs", "📈 Metriken", "ℹ️ Info"])
 
 # Dashboard Tab
 with tab1:
