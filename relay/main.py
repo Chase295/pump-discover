@@ -13,7 +13,7 @@ from datetime import datetime
 # Konfiguration aus Environment Variables
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "10"))
 BATCH_TIMEOUT = int(os.getenv("BATCH_TIMEOUT", "30"))
-N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://100.93.196.41:5678/webhook/discover")
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "").strip()  # Leer als Default, damit klar ist wenn nicht gesetzt
 N8N_WEBHOOK_METHOD = os.getenv("N8N_WEBHOOK_METHOD", "POST").upper()  # POST oder GET
 WS_RETRY_DELAY = int(os.getenv("WS_RETRY_DELAY", "3"))
 WS_MAX_RETRY_DELAY = int(os.getenv("WS_MAX_RETRY_DELAY", "60"))
@@ -94,6 +94,7 @@ async def health_check(request):
         "status": "healthy" if ws_status else "degraded",
         "ws_connected": ws_status,
         "n8n_available": n8n_status,
+        "n8n_webhook_url": N8N_WEBHOOK_URL if N8N_WEBHOOK_URL else "NICHT GESETZT",
         "uptime_seconds": int(uptime),
         "total_coins": relay_status["total_coins"],
         "total_batches": relay_status["total_batches"],
@@ -131,10 +132,15 @@ async def start_health_server():
     site = web.TCPSite(runner, "0.0.0.0", HEALTH_PORT)
     add_log(f"🏥 Health-Check Server läuft auf Port {HEALTH_PORT}")
     add_log(f"📊 Prometheus Metrics auf http://localhost:{HEALTH_PORT}/metrics")
+    add_log(f"📋 Logs API auf http://localhost:{HEALTH_PORT}/logs")
     await site.start()
 
 async def send_to_n8n(session, batch):
     """Sendet Batch an n8n mit Retry-Logik"""
+    if not N8N_WEBHOOK_URL:
+        add_log("❌ FEHLER: N8N_WEBHOOK_URL ist nicht gesetzt! Kann Coins nicht senden.")
+        return False
+    
     max_retries = 3
     retry_count = 0
     
@@ -377,18 +383,29 @@ async def listen_and_relay():
 
 async def main():
     """Hauptfunktion"""
-    print(f"🔧 Konfiguration:", flush=True)
-    print(f"  - BATCH_SIZE: {BATCH_SIZE}", flush=True)
-    print(f"  - BATCH_TIMEOUT: {BATCH_TIMEOUT}s", flush=True)
-    print(f"  - WS_PING_INTERVAL: {WS_PING_INTERVAL}s", flush=True)
-    print(f"  - WS_PING_TIMEOUT: {WS_PING_TIMEOUT}s", flush=True)
-    print(f"  - WS_CONNECTION_TIMEOUT: {WS_CONNECTION_TIMEOUT}s", flush=True)
-    print(f"  - N8N_WEBHOOK_URL: {N8N_WEBHOOK_URL}", flush=True)
+    add_log("=" * 60)
+    add_log("🚀 PUMP DISCOVER RELAY - Starte...")
+    add_log("=" * 60)
+    add_log(f"🔧 Konfiguration:")
+    add_log(f"  - BATCH_SIZE: {BATCH_SIZE}")
+    add_log(f"  - BATCH_TIMEOUT: {BATCH_TIMEOUT}s")
+    add_log(f"  - WS_PING_INTERVAL: {WS_PING_INTERVAL}s")
+    add_log(f"  - WS_PING_TIMEOUT: {WS_PING_TIMEOUT}s")
+    add_log(f"  - WS_CONNECTION_TIMEOUT: {WS_CONNECTION_TIMEOUT}s")
+    add_log(f"  - WS_URI: {WS_URI}")
+    if N8N_WEBHOOK_URL:
+        add_log(f"  - N8N_WEBHOOK_URL: {N8N_WEBHOOK_URL} ✅")
+    else:
+        add_log(f"  - N8N_WEBHOOK_URL: NICHT GESETZT ⚠️")
+        add_log(f"  ⚠️ WARNUNG: n8n Webhook URL ist leer! Coins werden nicht weitergeleitet!")
+    add_log(f"  - N8N_WEBHOOK_METHOD: {N8N_WEBHOOK_METHOD}")
+    add_log(f"  - BAD_NAMES_PATTERN: {BAD_NAMES_PATTERN}")
+    add_log("=" * 60)
     await asyncio.gather(listen_and_relay(), start_health_server())
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n👋 Shutdown...", flush=True)
+        add_log("👋 Shutdown...")
 
