@@ -1185,9 +1185,222 @@ with tab5:
     - **API/Relay**: Port `8010` (extern) → `8000` (intern)
     """)
     
-    st.subheader("Endpoints")
+    st.subheader("API Endpoints")
     st.markdown("""
-    - `GET /health` - Health Check (Status, Uptime, etc.)
-    - `GET /metrics` - Prometheus Metrics
+    | Endpoint | Methode | Beschreibung |
+    |----------|---------|--------------|
+    | `/health` | GET | Health Check (Status, Uptime, n8n-Verbindung, etc.) |
+    | `/metrics` | GET | Prometheus Metrics (Text-Format) |
+    | `/logs` | GET | Service-Logs (JSON, Parameter: `?lines=100`) |
+    | `/reload-config` | POST | Lädt Konfiguration neu (ohne Neustart) |
+    """)
+    
+    # Zusätzliche Tabellen
+    st.subheader("Zusätzliche Tabellen")
+    st.markdown("""
+    #### `coin_streams`
+    Speichert aktive Coin-Streams für kontinuierliches Metriken-Tracking:
+    - `id` (BIGSERIAL PRIMARY KEY)
+    - `token_address` (VARCHAR(64), UNIQUE)
+    - `current_phase_id` (INTEGER, Referenz zu `ref_coin_phases`)
+    - `is_active` (BOOLEAN)
+    - `is_graduated` (BOOLEAN)
+    - `started_at` (TIMESTAMP)
+    
+    #### `ref_coin_phases`
+    Referenztabelle für Coin-Phasen:
+    - `id` (INT PRIMARY KEY)
+    - `name` (VARCHAR(50)) - z.B. "Baby Zone", "Survival Zone", "Mature Zone"
+    - `interval_seconds` (INT) - Intervall für Metriken-Updates
+    - `min_age_minutes` / `max_age_minutes` (INT) - Zeitfenster für diese Phase
+    
+    **Phasen:**
+    - **Baby Zone** (ID: 1): 0-10 Min, Intervall: 5s
+    - **Survival Zone** (ID: 2): 10-60 Min, Intervall: 30s
+    - **Mature Zone** (ID: 3): 1-24 Std, Intervall: 60s
+    - **Finished** (ID: 99): Ab 24 Std
+    - **Graduated** (ID: 100): Graduierte Tokens
+    """)
+    
+    # KI-optimierte Features
+    st.header("🤖 KI-optimierte Rug-Detection Features")
+    
+    st.subheader("1️⃣ Lazy Scam Detektor (Bild-Hash)")
+    st.markdown("""
+    **Ziel:** Erkenne Coins, die dasselbe Bild wie bereits bekannte Rugs verwenden.
+    
+    **Implementierung:**
+    - `image_hash` (VARCHAR(64)) - pHash des Bildes
+    - Wird optional in n8n berechnet (wenn `image_url` vorhanden)
+    - KI kann lernen: "Wenn Hash = X und letzte 50 Coins mit diesem Hash waren Rugs → Rug-Wahrscheinlichkeit = 99%"
+    
+    **Status:** ✅ SQL-Schema erweitert, Implementierung in n8n optional
+    """)
+    
+    st.subheader("2️⃣ RugCheck Details (Erweiterte Flags)")
+    st.markdown("""
+    **Ziel:** Nicht nur den `risk_score` speichern, sondern auch konkrete Boolean-Flags.
+    
+    **Implementierung:**
+    - `metadata_is_mutable` (BOOLEAN) - Kann Dev Metadata nachträglich ändern? (Soft-Rug-Indikator)
+    - `mint_authority_enabled` (BOOLEAN) - Kann Dev neue Tokens drucken? (Hartes Ausschlusskriterium)
+    - Werden in n8n aus RugCheck API geholt (`metadata.isMutable`, `mintAuthority.enabled`)
+    
+    **KI-Lernziele:**
+    - "Wenn `mint_authority_enabled = true` → Rug-Wahrscheinlichkeit = 99%"
+    - "Wenn `metadata_is_mutable = true` → Soft-Rug-Wahrscheinlichkeit = 70%"
+    
+    **Status:** ✅ SQL-Schema erweitert, Mapping in n8n erforderlich
+    """)
+    
+    st.subheader("3️⃣ Social Effort Metrik")
+    st.markdown("""
+    **Ziel:** Einfache Metrik für KI: "Coins mit Social Count < 2 ruggen zu 80% schneller."
+    
+    **Implementierung:**
+    - `social_count` (INT, 0-4) - Anzahl vorhandener Social-Links
+    - Berechnung: Twitter + Telegram + Website + Discord
+    - Wird im Relay automatisch berechnet und an n8n gesendet
+    
+    **KI-Lernziele:**
+    - "Wenn `social_count < 2` → Rug-Wahrscheinlichkeit = 80%"
+    - "Wenn `social_count >= 3` → Rug-Wahrscheinlichkeit = 20%"
+    
+    **Status:** ✅ Implementiert - wird automatisch berechnet
+    """)
+    
+    # Deployment & Konfiguration
+    st.header("🚀 Deployment & Konfiguration")
+    
+    st.subheader("Lokale Entwicklung")
+    st.markdown("""
+    ```bash
+    # Docker Compose starten
+    docker compose up -d
+    
+    # Services
+    - Web UI: http://localhost:8500
+    - API: http://localhost:8010
+    ```
+    """)
+    
+    st.subheader("Coolify Deployment")
+    st.markdown("""
+    **Wichtige Hinweise:**
+    - Ports: Web UI (8500), API (8010)
+    - Named Volume: `config_data` für persistente Konfiguration
+    - Kein Docker Socket verfügbar → UI verwendet API-Endpunkte
+    - Service-Name: `api` für interne Kommunikation
+    
+    **Dokumentation:** Siehe `COOLIFY.md` für detaillierte Anleitung
+    """)
+    
+    st.subheader("Konfiguration")
+    st.markdown("""
+    **Über UI konfigurierbar:**
+    - Batch-Einstellungen (Größe, Timeout)
+    - n8n Webhook (URL, Methode)
+    - WebSocket-Einstellungen (URI, Retry, Ping)
+    - Filter-Pattern (Bad Names Regex)
+    - **Datenbank-Credentials** (Host, Port, Name, User, Password)
+    
+    **Konfiguration wird gespeichert in:**
+    - `/app/config/.env` (geteiltes Volume)
+    - Wird vom Relay-Service dynamisch geladen (via `/reload-config` Endpoint)
+    """)
+    
+    # Troubleshooting
+    st.header("🔧 Troubleshooting")
+    
+    st.subheader("Häufige Probleme")
+    st.markdown("""
+    **Problem:** n8n URL wird nicht übernommen
+    - ✅ **Gelöst:** Konfiguration wird in Volume gespeichert, Relay lädt sie dynamisch
+    - Lösung: Konfiguration speichern → "Konfiguration neu laden" klicken
+    
+    **Problem:** Logs nicht sichtbar in UI
+    - ✅ **Gelöst:** Logs werden über API-Endpoint `/logs` abgerufen
+    - Lösung: Prüfe, ob Relay-Service läuft (`/health` Endpoint)
+    
+    **Problem:** DB-Verbindung schlägt fehl
+    - Lösung: DB-Credentials im Konfigurations-Tab prüfen
+    - Lösung: "DB-Verbindung testen" Button verwenden
+    - Lösung: Prüfe, ob PostgreSQL läuft und erreichbar ist
+    
+    **Problem:** Container zeigt "running unknown" in Coolify
+    - ✅ **Gelöst:** Healthchecks wurden verbessert
+    - Lösung: Prüfe Healthcheck-Logs in Coolify-Dashboard
+    """)
+    
+    st.subheader("Logs & Debugging")
+    st.markdown("""
+    **Logs abrufen:**
+    - **UI:** Tab "📋 Logs" (zeigt neueste zuerst)
+    - **API:** `GET http://localhost:8010/logs?lines=100`
+    - **Docker:** `docker compose logs api` oder `docker compose logs web`
+    
+    **Health-Check:**
+    - `GET http://localhost:8010/health` - Zeigt Status, Uptime, n8n-Verbindung
+    
+    **Metrics:**
+    - `GET http://localhost:8010/metrics` - Prometheus-kompatible Metriken
+    """)
+    
+    # Dokumentation & Links
+    st.header("📚 Dokumentation & Ressourcen")
+    
+    st.subheader("Projekt-Dokumentation")
+    st.markdown("""
+    - **[README.md](../README.md)** - Projekt-Übersicht und Schnellstart
+    - **[ERWEITERUNGSPLAN.md](../ERWEITERUNGSPLAN.md)** - KI-optimierte Features
+    - **[COOLIFY.md](../COOLIFY.md)** - Coolify Deployment-Anleitung
+    - **[DATEN_MAPPING.md](../DATEN_MAPPING.md)** - Daten-Mapping (WebSocket → SQL)
+    - **[API_SQL_MAPPING.md](../API_SQL_MAPPING.md)** - API-Daten → SQL Mapping
+    - **[sql/schema.sql](../sql/schema.sql)** - Vollständiges Datenbankschema
+    """)
+    
+    st.subheader("Externe Ressourcen")
+    st.markdown("""
+    - **Pump.fun**: https://pump.fun
+    - **n8n**: https://n8n.io
+    - **Prometheus**: https://prometheus.io
+    - **Streamlit**: https://streamlit.io
+    """)
+    
+    # Projekt-Status
+    st.header("✅ Projekt-Status")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.success("✅ WebSocket Relay")
+        st.caption("Empfängt & filtert Tokens")
+    
+    with col2:
+        st.success("✅ n8n Integration")
+        st.caption("GET/POST Webhooks")
+    
+    with col3:
+        st.success("✅ DB-Verbindung")
+        st.caption("PostgreSQL mit Prüfung")
+    
+    with col4:
+        st.success("✅ Metrics & Monitoring")
+        st.caption("Prometheus + Dashboard")
+    
+    st.markdown("""
+    **Implementierte Features:**
+    - ✅ Echtzeit-WebSocket-Verbindung zu Pump.fun
+    - ✅ Spam-Burst-Filterung
+    - ✅ Bad Names Filter (Regex)
+    - ✅ Batch-Verarbeitung
+    - ✅ n8n Webhook-Integration (GET/POST)
+    - ✅ Prometheus Metrics
+    - ✅ Streamlit UI für Monitoring & Konfiguration
+    - ✅ Dynamische Konfiguration (ohne Neustart)
+    - ✅ DB-Verbindungsprüfung
+    - ✅ KI-optimierte Felder (social_count, metadata_is_mutable, mint_authority_enabled, image_hash)
+    - ✅ Health-Checks für Docker/Coolify
+    - ✅ Logs-API für zentrale Log-Anzeige
     """)
 
