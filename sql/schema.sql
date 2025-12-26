@@ -158,3 +158,58 @@ COMMENT ON COLUMN discovered_coins.social_count IS 'Anzahl Social-Links (0-4): T
 COMMENT ON COLUMN discovered_coins.metadata_is_mutable IS 'Kann Dev Metadata nachträglich ändern? (aus RugCheck API: metadata.isMutable) - Soft-Rug-Indikator';
 COMMENT ON COLUMN discovered_coins.mint_authority_enabled IS 'Kann Dev neue Tokens drucken? (aus RugCheck API: mintAuthority.enabled) - Hartes Ausschlusskriterium';
 COMMENT ON COLUMN discovered_coins.image_hash IS 'pHash des Bildes (64 Zeichen) - für Lazy Scam Detection: Erkennung von Coins mit identischem Bild';
+
+-- ============================================================================
+-- COIN STREAMS - Tabelle für kontinuierliche Metriken-Tracking
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS coin_streams (
+    id BIGSERIAL PRIMARY KEY,
+    token_address VARCHAR(64) NOT NULL,
+    current_phase_id INTEGER DEFAULT 1,
+    is_active BOOLEAN DEFAULT true,
+    is_graduated BOOLEAN DEFAULT false,
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_active_stream UNIQUE (token_address)
+);
+
+CREATE INDEX IF NOT EXISTS idx_coin_streams_token_address ON coin_streams(token_address);
+CREATE INDEX IF NOT EXISTS idx_coin_streams_phase_id ON coin_streams(current_phase_id);
+CREATE INDEX IF NOT EXISTS idx_coin_streams_active ON coin_streams(is_active);
+CREATE INDEX IF NOT EXISTS idx_coin_streams_graduated ON coin_streams(is_graduated);
+
+COMMENT ON TABLE coin_streams IS 'Speichert aktive Coin-Streams für kontinuierliches Metriken-Tracking';
+COMMENT ON COLUMN coin_streams.token_address IS 'Token-Adresse (Referenz zu discovered_coins)';
+COMMENT ON COLUMN coin_streams.current_phase_id IS 'Aktuelle Phase ID (Referenz zu ref_coin_phases)';
+COMMENT ON COLUMN coin_streams.is_active IS 'Ob der Stream noch aktiv ist';
+COMMENT ON COLUMN coin_streams.is_graduated IS 'Ob der Token bereits graduiert ist';
+
+-- ============================================================================
+-- REF COIN PHASES - Referenztabelle für Coin-Phasen
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS ref_coin_phases (
+    id INT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    interval_seconds INT NOT NULL,
+    min_age_minutes INT NOT NULL,
+    max_age_minutes INT NOT NULL
+);
+
+-- Initiale Daten (nur wenn Tabelle leer ist)
+INSERT INTO ref_coin_phases (id, name, interval_seconds, min_age_minutes, max_age_minutes)
+SELECT * FROM (VALUES
+    (1, 'Baby Zone', 5, 0, 10),
+    (2, 'Survival Zone', 30, 10, 60),
+    (3, 'Mature Zone', 60, 60, 1440),
+    (99, 'Finished', 0, 1440, 999999),
+    (100, 'Graduated', 0, 1440, 999999)
+) AS v(id, name, interval_seconds, min_age_minutes, max_age_minutes)
+WHERE NOT EXISTS (SELECT 1 FROM ref_coin_phases);
+
+CREATE INDEX IF NOT EXISTS idx_ref_coin_phases_id ON ref_coin_phases(id);
+
+COMMENT ON TABLE ref_coin_phases IS 'Referenztabelle für Coin-Phasen (Baby Zone, Survival Zone, etc.)';
+COMMENT ON COLUMN ref_coin_phases.interval_seconds IS 'Intervall in Sekunden für Metriken-Updates in dieser Phase';
+COMMENT ON COLUMN ref_coin_phases.min_age_minutes IS 'Minimales Alter in Minuten für diese Phase';
+COMMENT ON COLUMN ref_coin_phases.max_age_minutes IS 'Maximales Alter in Minuten für diese Phase';

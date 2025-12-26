@@ -6,7 +6,7 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/* && \
-    pip install --no-cache-dir streamlit requests pyyaml docker
+    pip install --no-cache-dir streamlit requests pyyaml docker psycopg2-binary
 
 # Kopiere App
 COPY app.py .

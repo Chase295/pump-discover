@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 import re
 from urllib.parse import urlparse
+import psycopg2
+from psycopg2 import sql
 
 # Konfiguration
 CONFIG_FILE = "/app/config/config.yaml"
@@ -340,6 +342,61 @@ def restart_service():
     except Exception as e:
         return False, f"Fehler: {str(e)}"
 
+def check_database_connection():
+    """Prüft DB-Verbindung und Tabellen-Existenz"""
+    db_config = {
+        'host': os.getenv('DB_HOST', 'localhost'),
+        'port': os.getenv('DB_PORT', '5432'),
+        'database': os.getenv('DB_NAME', 'pump_discover'),
+        'user': os.getenv('DB_USER', 'postgres'),
+        'password': os.getenv('DB_PASSWORD', '')
+    }
+    
+    result = {
+        'connected': False,
+        'tables': {
+            'discovered_coins': False,
+            'coin_streams': False,
+            'ref_coin_phases': False
+        },
+        'error': None,
+        'configured': False
+    }
+    
+    # Prüfe ob DB-Credentials gesetzt sind
+    if not db_config.get('password') and not os.getenv('DB_PASSWORD'):
+        result['error'] = 'DB-Credentials nicht konfiguriert (DB_PASSWORD fehlt)'
+        return result
+    
+    result['configured'] = True
+    
+    try:
+        conn = psycopg2.connect(**db_config)
+        cursor = conn.cursor()
+        
+        # Prüfe Tabellen-Existenz
+        cursor.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name IN ('discovered_coins', 'coin_streams', 'ref_coin_phases')
+        """)
+        
+        existing_tables = [row[0] for row in cursor.fetchall()]
+        
+        result['connected'] = True
+        result['tables']['discovered_coins'] = 'discovered_coins' in existing_tables
+        result['tables']['coin_streams'] = 'coin_streams' in existing_tables
+        result['tables']['ref_coin_phases'] = 'ref_coin_phases' in existing_tables
+        
+        cursor.close()
+        conn.close()
+        
+    except Exception as e:
+        result['error'] = str(e)
+    
+    return result
+
 def get_service_logs(lines=100):
     """Holt Logs vom Relay-Service"""
     # Coolify-Modus: Logs über API abrufen
@@ -446,6 +503,99 @@ with tab1:
             st.metric("Uptime", f"{int(hours)}h {int(minutes)}m")
         else:
             st.metric("Uptime", "-")
+    
+    # Metriken direkt im Dashboard anzeigen
+    st.subheader("📈 Live-Metriken")
+    metrics = get_relay_metrics()
+    
+    if metrics:
+        metrics_dict = {}
+        for line in metrics.split('\n'):
+            if line and not line.startswith('#'):
+                parts = line.split()
+                if len(parts) >= 2:
+                    metric_name = parts[0]
+                    try:
+                        metric_value = float(parts[1]) if '.' in parts[1] else int(parts[1])
+                        metrics_dict[metric_name] = metric_value
+                    except:
+                        metrics_dict[metric_name] = parts[1]
+        
+        # Wichtige Metriken in Spalten
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        
+        with col_m1:
+            coins_received = metrics_dict.get('pumpfun_coins_received_total', 0)
+            st.metric("Coins empfangen (Total)", f"{coins_received:,}")
+        
+        with col_m2:
+            coins_sent = metrics_dict.get('pumpfun_coins_sent_total', 0)
+            st.metric("Coins gesendet (Total)", f"{coins_sent:,}")
+        
+        with col_m3:
+            coins_filtered = metrics_dict.get('pumpfun_coins_filtered_total', 0)
+            st.metric("Coins gefiltert (Total)", f"{coins_filtered:,}")
+        
+        with col_m4:
+            batches_sent = metrics_dict.get('pumpfun_batches_sent_total', 0)
+            st.metric("Batches gesendet (Total)", f"{batches_sent:,}")
+        
+        col_m5, col_m6, col_m7, col_m8 = st.columns(4)
+        
+        with col_m5:
+            ws_connected = metrics_dict.get('pumpfun_ws_connected', 0)
+            status_text = "🟢 Verbunden" if ws_connected == 1 else "🔴 Getrennt"
+            st.metric("WebSocket Status", status_text)
+        
+        with col_m6:
+            n8n_available = metrics_dict.get('pumpfun_n8n_available', 0)
+            status_text = "🟢 Verfügbar" if n8n_available == 1 else "🔴 Nicht verfügbar"
+            st.metric("n8n Status", status_text)
+        
+        with col_m7:
+            buffer_size = metrics_dict.get('pumpfun_buffer_size', 0)
+            st.metric("Buffer Größe", f"{buffer_size}")
+        
+        with col_m8:
+            ws_reconnects = metrics_dict.get('pumpfun_ws_reconnects_total', 0)
+            st.metric("WebSocket Reconnects", f"{ws_reconnects}")
+    else:
+        st.warning("⚠️ Metriken konnten nicht abgerufen werden. Bitte prüfe, ob der Relay-Service läuft.")
+    
+    # Datenbank-Verbindungsprüfung
+    st.subheader("🗄️ Datenbank-Status")
+    db_status = check_database_connection()
+    
+    if not db_status['configured']:
+        st.info("ℹ️ DB-Credentials nicht konfiguriert. Setze DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD als Environment Variables.")
+    else:
+        col_db1, col_db2, col_db3, col_db4 = st.columns(4)
+        
+        with col_db1:
+            if db_status['connected']:
+                st.success("✅ Verbunden")
+            else:
+                st.error("❌ Nicht verbunden")
+                if db_status['error']:
+                    st.caption(f"Fehler: {db_status['error'][:50]}")
+        
+        with col_db2:
+            if db_status['tables']['discovered_coins']:
+                st.success("✅ discovered_coins")
+            else:
+                st.error("❌ discovered_coins fehlt")
+        
+        with col_db3:
+            if db_status['tables']['coin_streams']:
+                st.success("✅ coin_streams")
+            else:
+                st.warning("⚠️ coin_streams fehlt")
+        
+        with col_db4:
+            if db_status['tables']['ref_coin_phases']:
+                st.success("✅ ref_coin_phases")
+            else:
+                st.warning("⚠️ ref_coin_phases fehlt")
     
     # Detaillierte Informationen
     if health:
@@ -664,8 +814,9 @@ with tab3:
         time.sleep(10)
         st.rerun()
 
-# Metriken Tab
+# Metriken Tab (wird jetzt im Dashboard angezeigt)
 with tab4:
+    st.info("💡 Die Metriken werden jetzt direkt im Dashboard angezeigt. Dieser Tab zeigt die vollständigen Raw-Metriken.")
     
     if st.button("🔄 Metriken aktualisieren"):
         st.rerun()
@@ -673,42 +824,25 @@ with tab4:
     metrics = get_relay_metrics()
     
     if metrics:
-        # Parse und zeige wichtige Metriken
-        st.subheader("📈 Wichtige Metriken")
+        # Vollständige Metriken
+        st.subheader("📄 Vollständige Prometheus Metriken (Raw)")
+        st.code(metrics, language="text")
         
+        # Metriken als JSON parsen (für erweiterte Ansicht)
+        st.subheader("📊 Metriken als strukturierte Daten")
         metrics_dict = {}
         for line in metrics.split('\n'):
             if line and not line.startswith('#'):
                 parts = line.split()
                 if len(parts) >= 2:
                     metric_name = parts[0]
-                    metric_value = parts[1]
-                    metrics_dict[metric_name] = metric_value
+                    try:
+                        metric_value = float(parts[1]) if '.' in parts[1] else int(parts[1])
+                        metrics_dict[metric_name] = metric_value
+                    except:
+                        metrics_dict[metric_name] = parts[1]
         
-        # Wichtige Metriken anzeigen
-        important_metrics = [
-            'pumpfun_coins_received_total',
-            'pumpfun_coins_sent_total',
-            'pumpfun_coins_filtered_total',
-            'pumpfun_batches_sent_total',
-            'pumpfun_ws_reconnects_total',
-            'pumpfun_ws_connected',
-            'pumpfun_n8n_available',
-            'pumpfun_buffer_size',
-            'pumpfun_uptime_seconds'
-        ]
-        
-        cols = st.columns(3)
-        col_idx = 0
-        for metric in important_metrics:
-            if metric in metrics_dict:
-                with cols[col_idx % 3]:
-                    st.metric(metric.replace('pumpfun_', '').replace('_', ' ').title(), metrics_dict[metric])
-                col_idx += 1
-        
-        # Vollständige Metriken
-        st.subheader("📄 Vollständige Metriken (Raw)")
-        st.code(metrics, language="text")
+        st.json(metrics_dict)
     else:
         st.error("❌ Metriken konnten nicht abgerufen werden. Bitte prüfe, ob der Relay-Service läuft.")
     
