@@ -1095,7 +1095,7 @@ with tab5:
     | `uri` | Metadata URI | `https://ipfs.io/ipfs/...` |
     | `is_mayhem_mode` | Mayhem Mode Flag | `false` |
     | `pool` | Pool-Typ | `pump` |
-    | `phaseId` | Phase ID | `1` → **coin_streams.current_phase_id** (nicht discovered_coins) |
+    | `phaseId` | Phase ID | `1` |
     """)
     
     st.subheader("2️⃣ API-Daten (in n8n abgerufen)")
@@ -1184,7 +1184,7 @@ with tab5:
         
         #### 7. Graduation
         - `open_market_cap_sol` - Fester Wert für Graduierung (85,000 SOL)
-        - **HINWEIS:** `phase_id` ist in der `coin_streams` Tabelle, nicht in `discovered_coins`
+        - `phase_id` - Phase ID
         
         #### 8. Status Flags
         - `is_mayhem_mode` - Mayhem Mode Flag
@@ -1239,7 +1239,7 @@ with tab5:
     | `uri` | `metadata_uri` | WebSocket |
     | `is_mayhem_mode` | `is_mayhem_mode` | WebSocket |
     | `pool` | `pool_type` | WebSocket |
-    | `phaseId` | `current_phase_id` | WebSocket → **coin_streams** Tabelle (nicht discovered_coins) |
+    | `phaseId` | `phase_id` | WebSocket |
     | `vSolInBondingCurve` | `liquidity_sol` | WebSocket (gleicher Wert) |
     """)
     

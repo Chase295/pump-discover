@@ -69,7 +69,7 @@ CREATE TABLE discovered_coins (
     -- ============================================================================
     open_market_cap_sol NUMERIC(20, 2) DEFAULT 85000,  -- Fester Wert für Graduierung (~85,000 SOL)
                                                         -- Berechnungen (distance, progress) über Views
-                                                        -- HINWEIS: phase_id ist in coin_streams Tabelle, nicht hier
+    phase_id INT,                                       -- Phase ID (vom WebSocket: phaseId)
     
     -- ============================================================================
     -- 8. STATUS FLAGS
@@ -128,6 +128,9 @@ CREATE INDEX idx_dc_initial_buy ON discovered_coins(initial_buy_sol DESC);
 -- Market Cap Indexe
 CREATE INDEX idx_dc_market_cap_sol ON discovered_coins(market_cap_sol DESC);
 
+-- Phase-Index
+CREATE INDEX idx_dc_phase_id ON discovered_coins(phase_id);
+
 -- Token-Indexe
 CREATE INDEX idx_dc_deploy_platform ON discovered_coins(deploy_platform);
 
@@ -151,6 +154,7 @@ COMMENT ON COLUMN discovered_coins.initial_buy_sol IS 'SOL Betrag beim initialen
 COMMENT ON COLUMN discovered_coins.market_cap_sol IS 'Market Cap in SOL (direkt vom WebSocket: marketCapSol)';
 COMMENT ON COLUMN discovered_coins.liquidity_sol IS 'Liquidität in SOL (direkt vom WebSocket: vSolInBondingCurve)';
 COMMENT ON COLUMN discovered_coins.open_market_cap_sol IS 'Fester Wert für Graduierung (~85,000 SOL). Berechnungen über Views.';
+COMMENT ON COLUMN discovered_coins.phase_id IS 'Phase ID vom WebSocket (phaseId)';
 COMMENT ON COLUMN discovered_coins.token_decimals IS 'Token Decimals (vom API: token.decimals)';
 COMMENT ON COLUMN discovered_coins.token_supply IS 'Token Supply (vom API: token.supply)';
 COMMENT ON COLUMN discovered_coins.deploy_platform IS 'Deployment Platform (vom API: deployPlatform, z.B. "rapidlaunch")';
