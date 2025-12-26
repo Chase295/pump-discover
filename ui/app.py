@@ -344,12 +344,15 @@ def restart_service():
 
 def check_database_connection():
     """Prüft DB-Verbindung und Tabellen-Existenz"""
+    # Lade DB-Config aus Config-Datei oder Environment Variables
+    config = load_config()
+    
     db_config = {
-        'host': os.getenv('DB_HOST', 'localhost'),
-        'port': os.getenv('DB_PORT', '5432'),
-        'database': os.getenv('DB_NAME', 'pump_discover'),
-        'user': os.getenv('DB_USER', 'postgres'),
-        'password': os.getenv('DB_PASSWORD', '')
+        'host': config.get('DB_HOST', os.getenv('DB_HOST', 'localhost')),
+        'port': config.get('DB_PORT', os.getenv('DB_PORT', '5432')),
+        'database': config.get('DB_NAME', os.getenv('DB_NAME', 'pump_discover')),
+        'user': config.get('DB_USER', os.getenv('DB_USER', 'postgres')),
+        'password': config.get('DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
     }
     
     result = {
@@ -364,7 +367,7 @@ def check_database_connection():
     }
     
     # Prüfe ob DB-Credentials gesetzt sind
-    if not db_config.get('password') and not os.getenv('DB_PASSWORD'):
+    if not db_config.get('password'):
         result['error'] = 'DB-Credentials nicht konfiguriert (DB_PASSWORD fehlt)'
         return result
     
@@ -693,6 +696,34 @@ with tab2:
             regex_valid, regex_error = validate_regex(config["BAD_NAMES_PATTERN"], allow_empty=True)
             if not regex_valid:
                 st.error(f"❌ {regex_error}")
+        
+        st.subheader("🗄️ Datenbank-Einstellungen")
+        config["DB_HOST"] = st.text_input("DB Host", value=config.get("DB_HOST", "localhost"), help="PostgreSQL Host-Adresse")
+        config["DB_PORT"] = st.number_input("DB Port", min_value=1, max_value=65535, value=int(config.get("DB_PORT", 5432)))
+        config["DB_NAME"] = st.text_input("DB Name", value=config.get("DB_NAME", "pump_discover"), help="Datenbank-Name")
+        config["DB_USER"] = st.text_input("DB User", value=config.get("DB_USER", "postgres"), help="Datenbank-Benutzer")
+        config["DB_PASSWORD"] = st.text_input("DB Password", value=config.get("DB_PASSWORD", ""), type="password", help="Datenbank-Passwort")
+        
+        # DB-Verbindungstest
+        if st.button("🔍 DB-Verbindung testen", type="secondary"):
+            with st.spinner("Teste Datenbank-Verbindung..."):
+                db_status = check_database_connection()
+                if db_status['connected']:
+                    st.success("✅ Datenbank-Verbindung erfolgreich!")
+                    if db_status['tables']['discovered_coins']:
+                        st.success("✅ Tabelle 'discovered_coins' vorhanden")
+                    else:
+                        st.warning("⚠️ Tabelle 'discovered_coins' fehlt")
+                    if db_status['tables']['coin_streams']:
+                        st.success("✅ Tabelle 'coin_streams' vorhanden")
+                    else:
+                        st.info("ℹ️ Tabelle 'coin_streams' fehlt (optional)")
+                    if db_status['tables']['ref_coin_phases']:
+                        st.success("✅ Tabelle 'ref_coin_phases' vorhanden")
+                    else:
+                        st.info("ℹ️ Tabelle 'ref_coin_phases' fehlt (optional)")
+                else:
+                    st.error(f"❌ Datenbank-Verbindung fehlgeschlagen: {db_status.get('error', 'Unbekannter Fehler')}")
         
         st.subheader("🔧 Sonstige Einstellungen")
         config["HEALTH_PORT"] = st.number_input("Health Port", min_value=1000, max_value=65535, value=config.get("HEALTH_PORT", 8000))
