@@ -14,6 +14,7 @@ CONFIG_FILE = "/app/config/config.yaml"
 ENV_FILE = "/app/.env"  # .env Datei für Docker Compose
 RELAY_SERVICE = os.getenv("RELAY_SERVICE", "pump-discover-relay")  # Container-Name
 RELAY_PORT = int(os.getenv("RELAY_PORT", "8000"))
+COOLIFY_MODE = os.getenv("COOLIFY_MODE", "false").lower() == "true"  # Coolify-Modus (kein Docker Socket)
 
 st.set_page_config(
     page_title="Pump Discover - Control Panel",
@@ -225,6 +226,10 @@ def get_relay_metrics():
 
 def restart_service():
     """Startet Relay-Service neu (über Docker API, damit .env neu geladen wird)"""
+    # Coolify-Modus: Kein Docker Socket verfügbar
+    if COOLIFY_MODE:
+        return False, "⚠️ Coolify-Modus: Service-Neustart muss über das Coolify-Dashboard erfolgen. Gehe zu deinem Coolify-Dashboard und starte den 'api' Service neu."
+    
     try:
         import docker
         client = docker.from_env()
@@ -322,6 +327,18 @@ def restart_service():
 
 def get_service_logs(lines=100):
     """Holt Logs vom Relay-Service"""
+    # Coolify-Modus: Kein Docker Socket verfügbar
+    if COOLIFY_MODE:
+        return f"""⚠️ Coolify-Modus: Logs können nicht direkt abgerufen werden.
+
+📋 **Logs anzeigen:**
+1. Gehe zu deinem Coolify-Dashboard
+2. Wähle den 'api' Service
+3. Klicke auf "Logs" um die Logs anzuzeigen
+
+💡 **Alternative:** Du kannst die Logs auch über die Coolify-API abrufen.
+"""
+    
     try:
         import docker
         client = docker.from_env()
@@ -429,10 +446,15 @@ with tab1:
     
     # Neustart-Button
     st.subheader("🔧 Service-Management")
+    
+    # Coolify-Hinweis
+    if COOLIFY_MODE:
+        st.info("🌐 **Coolify-Modus aktiv:** Service-Neustart muss über das Coolify-Dashboard erfolgen.")
+    
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("🔄 Service neu starten", type="primary"):
+        if st.button("🔄 Service neu starten", type="primary", disabled=COOLIFY_MODE):
             with st.spinner("Service wird neu gestartet..."):
                 success, message = restart_service()
                 if success:
@@ -441,6 +463,8 @@ with tab1:
                     st.rerun()
                 else:
                     st.error(message)
+                    if COOLIFY_MODE:
+                        st.info("💡 **Hinweis:** In Coolify musst du den Service über das Dashboard neu starten.")
     
     with col2:
         if st.button("🔄 Seite aktualisieren"):
@@ -555,7 +579,7 @@ with tab2:
         with col1:
             st.info("💡 Die Konfiguration wurde gespeichert. Starte den Relay-Service neu, damit die neuen Werte geladen werden.")
         with col2:
-            if st.button("🔄 Relay-Service neu starten", type="primary", use_container_width=True):
+            if st.button("🔄 Relay-Service neu starten", type="primary", use_container_width=True, disabled=COOLIFY_MODE):
                 with st.spinner("Relay-Service wird neu gestartet..."):
                     success, message = restart_service()
                     if success:
@@ -566,7 +590,10 @@ with tab2:
                         st.rerun()
                     else:
                         st.error(message)
-                        st.info("💡 Du kannst den Service auch manuell neu starten: `docker compose restart relay`")
+                        if COOLIFY_MODE:
+                            st.info("💡 **Coolify:** Gehe zu deinem Coolify-Dashboard und starte den 'api' Service neu, damit die neuen Environment Variables geladen werden.")
+                        else:
+                            st.info("💡 Du kannst den Service auch manuell neu starten: `docker compose restart relay`")
     
     # Aktuelle Konfiguration anzeigen
     st.subheader("📄 Aktuelle Konfiguration")
