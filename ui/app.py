@@ -1061,7 +1061,7 @@ with tab5:
             ├─ Trigger: Bei jedem Batch-Erhalt
             ├─ Jupiter API v3: SOL-Preis in USD
             ├─ Frankfurter App API: USD zu EUR
-            └─ Speichert Marktstimmung in exchange_rates
+            └─ Speichert Marktstimmung in coin_metrics
             ↓
     PostgreSQL Datenbank
             ├─ discovered_coins Tabelle
@@ -1438,7 +1438,7 @@ with tab5:
     **Ziel:** Erfassung der allgemeinen Marktstimmung ("Wasserstand"), um bei der KI-Analyse echte Token-Pumps von allgemeinen Marktbewegungen (z.B. SOL-Crash) zu unterscheiden.
     
     **Implementierung:**
-    - `exchange_rates` Tabelle speichert Markt-Snapshots
+    - `coin_metrics` Tabelle speichert Markt-Snapshots
     - **n8n Workflow (Exchange Rates):** Läuft parallel zum Token-Processing
     - **Trigger:** Jedes Mal, wenn ein Batch an n8n gesendet wird
     - **Datenquellen:**
@@ -1587,6 +1587,6 @@ with tab5:
     - ✅ KI-optimierte Felder (social_count, metadata_is_mutable, mint_authority_enabled, image_hash)
     - ✅ Health-Checks für Docker/Coolify
     - ✅ Logs-API für zentrale Log-Anzeige
-    - ✅ Marktstimmung ("Wasserstand") - exchange_rates Tabelle für KI-Analyse ⭐ NEU
+    - ✅ Marktstimmung ("Wasserstand") - coin_metrics Tabelle für KI-Analyse ⭐ NEU
     """)
 
