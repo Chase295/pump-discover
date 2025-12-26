@@ -372,7 +372,8 @@ def check_database_connection():
         'tables': {
             'discovered_coins': False,
             'coin_streams': False,
-            'ref_coin_phases': False
+            'ref_coin_phases': False,
+            'exchange_rates': False
         },
         'error': None,
         'configured': False
@@ -394,7 +395,7 @@ def check_database_connection():
             SELECT table_name 
             FROM information_schema.tables 
             WHERE table_schema = 'public' 
-            AND table_name IN ('discovered_coins', 'coin_streams', 'ref_coin_phases')
+            AND table_name IN ('discovered_coins', 'coin_streams', 'ref_coin_phases', 'exchange_rates')
         """)
         
         existing_tables = [row[0] for row in cursor.fetchall()]
@@ -403,6 +404,7 @@ def check_database_connection():
         result['tables']['discovered_coins'] = 'discovered_coins' in existing_tables
         result['tables']['coin_streams'] = 'coin_streams' in existing_tables
         result['tables']['ref_coin_phases'] = 'ref_coin_phases' in existing_tables
+        result['tables']['exchange_rates'] = 'exchange_rates' in existing_tables
         
         cursor.close()
         conn.close()
@@ -611,6 +613,58 @@ with tab1:
                 st.success("✅ ref_coin_phases")
             else:
                 st.warning("⚠️ ref_coin_phases fehlt")
+        
+        # Exchange Rates Tabelle
+        st.markdown("---")
+        col_ex1, col_ex2 = st.columns(2)
+        with col_ex1:
+            if db_status['tables']['exchange_rates']:
+                st.success("✅ exchange_rates")
+            else:
+                st.warning("⚠️ exchange_rates fehlt")
+        
+        with col_ex2:
+            if db_status['tables']['exchange_rates']:
+                # Hole aktuelle Exchange Rates Metriken
+                try:
+                    conn = psycopg2.connect(
+                        host=db_config['host'],
+                        port=db_config['port'],
+                        database=db_config['database'],
+                        user=db_config['user'],
+                        password=db_config['password']
+                    )
+                    cursor = conn.cursor()
+                    
+                    # Letzte Exchange Rate
+                    cursor.execute("""
+                        SELECT sol_price_usd, created_at 
+                        FROM exchange_rates 
+                        ORDER BY created_at DESC 
+                        LIMIT 1
+                    """)
+                    last_rate = cursor.fetchone()
+                    
+                    # Statistiken
+                    cursor.execute("""
+                        SELECT 
+                            COUNT(*) as total_snapshots,
+                            AVG(sol_price_usd) as avg_sol_price,
+                            MIN(sol_price_usd) as min_sol_price,
+                            MAX(sol_price_usd) as max_sol_price
+                        FROM exchange_rates
+                    """)
+                    stats = cursor.fetchone()
+                    
+                    cursor.close()
+                    conn.close()
+                    
+                    if last_rate:
+                        st.metric("Aktueller SOL-Preis", f"${last_rate[0]:.2f}" if last_rate[0] else "N/A")
+                        if stats and stats[0] > 0:
+                            st.caption(f"📊 {stats[0]} Snapshots | Ø ${stats[1]:.2f}" if stats[1] else f"📊 {stats[0]} Snapshots")
+                except Exception as e:
+                    st.caption(f"⚠️ Metriken nicht verfügbar: {str(e)[:30]}")
     
     # Detaillierte Informationen
     if health:
@@ -792,6 +846,10 @@ with tab2:
                     st.success("✅ Tabelle 'ref_coin_phases' vorhanden")
                 else:
                     st.info("ℹ️ Tabelle 'ref_coin_phases' fehlt (optional)")
+                if db_status['tables']['exchange_rates']:
+                    st.success("✅ Tabelle 'exchange_rates' vorhanden")
+                else:
+                    st.info("ℹ️ Tabelle 'exchange_rates' fehlt (optional - für Marktstimmung)")
             else:
                 st.error(f"❌ Datenbank-Verbindung fehlgeschlagen: {db_status.get('error', 'Unbekannter Fehler')}")
     
@@ -922,15 +980,24 @@ with tab5:
             ├─ Batching: Sammelt Coins in Batches
             └─ Weiterleitung an n8n
             ↓
-    n8n Workflow
+    n8n Workflow (Token Processing)
             ├─ Empfängt Batches vom Relay
             ├─ Ruft API-Daten ab (RugCheck, etc.)
             ├─ Parst Metadata (IPFS/RapidLaunch)
             ├─ Führt weitere Filterung durch
             └─ Speichert in Datenbank
             ↓
+    n8n Workflow (Exchange Rates) ⭐ NEU
+            ├─ Trigger: Bei jedem Batch-Erhalt
+            ├─ Jupiter API v3: SOL-Preis in USD
+            ├─ Frankfurter App API: USD zu EUR
+            └─ Speichert Marktstimmung in exchange_rates
+            ↓
     PostgreSQL Datenbank
-            └─ discovered_coins Tabelle
+            ├─ discovered_coins Tabelle
+            ├─ coin_streams Tabelle
+            ├─ ref_coin_phases Tabelle
+            └─ exchange_rates Tabelle ⭐ NEU
     """, language="text")
     
     # Weitergegebene Informationen
@@ -1222,6 +1289,31 @@ with tab5:
     - **Mature Zone** (ID: 3): 1-24 Std, Intervall: 60s
     - **Finished** (ID: 99): Ab 24 Std
     - **Graduated** (ID: 100): Graduierte Tokens
+    
+    #### `exchange_rates` ⭐ NEU
+    **Ziel:** Erfassung der allgemeinen Marktstimmung ("Wasserstand"), um bei der KI-Analyse echte Token-Pumps von allgemeinen Marktbewegungen (z.B. SOL-Crash) zu unterscheiden.
+    
+    **Struktur:**
+    - `id` (SERIAL PRIMARY KEY)
+    - `created_at` (TIMESTAMPTZ) - Zeitstempel des Snapshots
+    - `sol_price_usd` (NUMERIC) - **WICHTIG:** Der "Wasserstand" (z.B. 145.50)
+    - `usd_to_eur_rate` (NUMERIC) - Währungsumrechnung
+    - `native_currency_price_usd` (NUMERIC) - Redundant zu sol_price (für Mapping)
+    - `blockchain_id` (INTEGER) - ID der Chain (1 = Solana)
+    - `source` (VARCHAR(50)) - Herkunft (z.B. "Scout Workflow", "Exchange Rates Workflow")
+    
+    **Bedeutung für KI-Training:**
+    Dieser Kontext ermöglicht der KI zu lernen:
+    - **"Token steigt, während SOL stabil ist"** → Bullish (Echter Pump) ✅
+    - **"Token steigt, weil SOL um 5% steigt"** → Neutral (Marktbewegung) ⚠️
+    - **"Token ist stabil, während SOL crasht"** → Stärke (Relative Strength) 💪
+    
+    **n8n Workflow (Exchange Rates):**
+    - **Trigger:** Jedes Mal, wenn ein Batch an n8n gesendet wird
+    - **Datenquellen:**
+      - Jupiter API v3: Aktueller SOL-Preis in USD (So111...112 Mint Address)
+      - Frankfurter App API: Aktueller USD zu EUR Wechselkurs
+    - **Aktion:** Schreibt einen Snapshot der Marktdaten in die Datenbank
     """)
     
     # KI-optimierte Features
@@ -1269,6 +1361,27 @@ with tab5:
     - "Wenn `social_count >= 3` → Rug-Wahrscheinlichkeit = 20%"
     
     **Status:** ✅ Implementiert - wird automatisch berechnet
+    """)
+    
+    st.subheader("4️⃣ Marktstimmung ("Wasserstand") ⭐ NEU")
+    st.markdown("""
+    **Ziel:** Erfassung der allgemeinen Marktstimmung ("Wasserstand"), um bei der KI-Analyse echte Token-Pumps von allgemeinen Marktbewegungen (z.B. SOL-Crash) zu unterscheiden.
+    
+    **Implementierung:**
+    - `exchange_rates` Tabelle speichert Markt-Snapshots
+    - **n8n Workflow (Exchange Rates):** Läuft parallel zum Token-Processing
+    - **Trigger:** Jedes Mal, wenn ein Batch an n8n gesendet wird
+    - **Datenquellen:**
+      - Jupiter API v3: Aktueller SOL-Preis in USD (So111...112 Mint Address)
+      - Frankfurter App API: Aktueller USD zu EUR Wechselkurs
+    - **Aktion:** Schreibt einen Snapshot der Marktdaten in die Datenbank
+    
+    **KI-Lernziele:**
+    - **"Token steigt, während SOL stabil ist"** → Bullish (Echter Pump) ✅
+    - **"Token steigt, weil SOL um 5% steigt"** → Neutral (Marktbewegung) ⚠️
+    - **"Token ist stabil, während SOL crasht"** → Stärke (Relative Strength) 💪
+    
+    **Status:** ✅ SQL-Schema erweitert, n8n Workflow implementiert
     """)
     
     # Deployment & Konfiguration
@@ -1404,5 +1517,6 @@ with tab5:
     - ✅ KI-optimierte Felder (social_count, metadata_is_mutable, mint_authority_enabled, image_hash)
     - ✅ Health-Checks für Docker/Coolify
     - ✅ Logs-API für zentrale Log-Anzeige
+    - ✅ Marktstimmung ("Wasserstand") - exchange_rates Tabelle für KI-Analyse ⭐ NEU
     """)
 
