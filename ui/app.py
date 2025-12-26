@@ -676,3 +676,274 @@ with tab4:
         time.sleep(5)
         st.rerun()
 
+# Info Tab
+with tab5:
+    st.title("ℹ️ Projekt-Informationen")
+    
+    # Projekt-Übersicht
+    st.header("📋 Was macht dieses Projekt?")
+    st.markdown("""
+    **Pump Discover** ist ein Echtzeit-Monitoring-System für neu erstellte Tokens auf Pump.fun.
+    
+    Das System:
+    - ✅ Empfängt neue Token-Erstellungen über WebSocket in Echtzeit
+    - ✅ Führt erste Filterung durch (Spam, Bad Names, etc.)
+    - ✅ Sendet gefilterte Tokens an n8n für weitere Verarbeitung
+    - ✅ Speichert Token-Daten in einer PostgreSQL-Datenbank
+    - ✅ Bietet eine Web-UI für Monitoring und Konfiguration
+    """)
+    
+    # Datenfluss
+    st.header("🔄 Datenfluss")
+    st.code("""
+    Pump.fun WebSocket (wss://pumpportal.fun/api/data)
+            ↓
+    Python Relay Service (relay/main.py)
+            ├─ Filterung: Bad Names, Spam-Burst
+            ├─ Batching: Sammelt Coins in Batches
+            └─ Weiterleitung an n8n
+            ↓
+    n8n Workflow
+            ├─ Empfängt Batches vom Relay
+            ├─ Ruft API-Daten ab (RugCheck, etc.)
+            ├─ Parst Metadata (IPFS/RapidLaunch)
+            ├─ Führt weitere Filterung durch
+            └─ Speichert in Datenbank
+            ↓
+    PostgreSQL Datenbank
+            └─ discovered_coins Tabelle
+    """, language="text")
+    
+    # Weitergegebene Informationen
+    st.header("📤 Welche Informationen werden weitergegeben?")
+    
+    st.subheader("1️⃣ WebSocket-Daten (vom Relay an n8n)")
+    st.markdown("""
+    Der Relay-Service sendet folgende Daten für jeden Token:
+    
+    | Feld | Beschreibung | Beispiel |
+    |------|--------------|----------|
+    | `mint` | Token-Adresse (Mint) | `7GggZA5GEHqTyiuFBTsWiU5uz7HDvSBMH11UB8GDpump` |
+    | `name` | Token-Name | `wifmas` |
+    | `symbol` | Token-Symbol | `wifmas` |
+    | `signature` | Transaktions-Signatur | `UEFn9JFNHYaUVDvmq66EBPFVKENsP4bS1Q75hXkvzQgWbKnKWdymxnRE3RZeG23Fm1AXwL1FByK59mdRioC4o7H` |
+    | `traderPublicKey` | Creator Public Key | `DxGLoNf279eyYqTRTYqPZTtiB5BbF4fqRtfjfrvQyiwt` |
+    | `bondingCurveKey` | Bonding Curve Adresse | `BMyRVLmarQUvTJ7YwkH3cQsg1VgSX3fV6AKgSYNb1joR` |
+    | `pool_address` | Pool-Adresse | `BMyRVLmarQUvTJ7YwkH3cQsg1VgSX3fV6AKgSYNb1joR` |
+    | `vTokensInBondingCurve` | Virtuelle Tokens | `1006714285.776477` |
+    | `vSolInBondingCurve` | Virtuelles SOL | `31.975308639999987` |
+    | `initialBuy` | Initiale Token-Anzahl | `66285714.223523` |
+    | `solAmount` | Initialer SOL-Betrag | `1.97530864` |
+    | `marketCapSol` | Market Cap in SOL | `31.762049165059267` |
+    | `price_sol` | Preis in SOL (berechnet) | `3.155021202521354e-8` |
+    | `uri` | Metadata URI | `https://ipfs.io/ipfs/...` |
+    | `is_mayhem_mode` | Mayhem Mode Flag | `false` |
+    | `pool` | Pool-Typ | `pump` |
+    | `phaseId` | Phase ID | `1` |
+    """)
+    
+    st.subheader("2️⃣ API-Daten (in n8n abgerufen)")
+    st.markdown("""
+    Zusätzlich werden in n8n folgende Daten von externen APIs abgerufen:
+    
+    | Feld | Quelle | Beschreibung |
+    |------|--------|--------------|
+    | `token.decimals` | RugCheck API | Token Decimals (z.B. `6`) |
+    | `token.supply` | RugCheck API | Token Supply (raw, mit decimals) |
+    | `deployPlatform` | RugCheck API | Deployment Platform (z.B. `"rapidlaunch"`) |
+    | `score` / `score_normalised` | RugCheck API | Risiko-Score (0-100) |
+    | `topHolders` | RugCheck API | Top Holders Array (für Berechnung) |
+    """)
+    
+    st.subheader("3️⃣ Metadata-Daten (aus URI geparst)")
+    st.markdown("""
+    Die Metadata-URI wird in n8n geparst und liefert:
+    
+    - `description` - Token-Beschreibung
+    - `image` - Bild-URL
+    - `twitter` - Twitter/X URL
+    - `telegram` - Telegram URL
+    - `website` - Website URL
+    - `discord` - Discord URL
+    """)
+    
+    # Datenbankschema
+    st.header("🗄️ Datenbankschema")
+    
+    st.subheader("Tabelle: `discovered_coins`")
+    st.markdown("""
+    Diese Tabelle speichert den **initialen Snapshot** jedes entdeckten Tokens.
+    Metriken (die sich ändern) werden in einer separaten Tabelle gespeichert (alle 5 Sekunden).
+    """)
+    
+    with st.expander("📋 Vollständiges Schema anzeigen"):
+        st.markdown("""
+        #### 1. Identifikation
+        - `token_address` (PRIMARY KEY) - Mint-Adresse
+        - `blockchain_id` - Blockchain ID (1 = Solana)
+        - `symbol` - Token-Symbol
+        - `name` - Token-Name
+        - `token_decimals` - Token Decimals (vom API)
+        - `token_supply` - Token Supply (vom API)
+        - `deploy_platform` - Deployment Platform (vom API)
+        
+        #### 2. Transaktions-Informationen
+        - `signature` - Transaktions-Signatur
+        - `trader_public_key` - Creator Public Key
+        
+        #### 3. Bonding Curve & Pool
+        - `bonding_curve_key` - Bonding Curve Adresse
+        - `pool_address` - Pool-Adresse
+        - `pool_type` - Pool-Typ (meist "pump")
+        - `v_tokens_in_bonding_curve` - Virtuelle Tokens
+        - `v_sol_in_bonding_curve` - Virtuelles SOL
+        
+        #### 4. Initial Buy
+        - `initial_buy_sol` - SOL Betrag beim initialen Buy
+        - `initial_buy_tokens` - Anzahl Tokens beim initialen Buy
+        
+        #### 5. Zeitstempel
+        - `discovered_at` - Wann wurde der Coin entdeckt
+        - `token_created_at` - Wann wurde der Token erstellt
+        
+        #### 6. Preis & Market Cap
+        - `price_sol` - Preis in SOL
+        - `market_cap_sol` - Market Cap in SOL
+        - `liquidity_sol` - Liquidität in SOL
+        
+        #### 7. Graduation
+        - `open_market_cap_sol` - Fester Wert für Graduierung (85,000 SOL)
+        - `phase_id` - Phase ID
+        
+        #### 8. Status Flags
+        - `is_mayhem_mode` - Mayhem Mode Flag
+        - `is_graduated` - Ob bereits graduiert
+        - `is_active` - Ob noch aktiv
+        
+        #### 9. Risiko & Analyse
+        - `risk_score` - Risiko-Score (0-100)
+        - `top_10_holders_pct` - Prozentualer Anteil der Top-10-Holder
+        - `has_socials` - Ob Social Media vorhanden
+        
+        #### 10. Metadata & Social Media
+        - `metadata_uri` - URI zur Metadata
+        - `description` - Token-Beschreibung
+        - `image_url` - Bild-URL
+        - `twitter_url` - Twitter/X URL
+        - `telegram_url` - Telegram URL
+        - `website_url` - Website URL
+        - `discord_url` - Discord URL
+        
+        #### 11. Management & Klassifizierung
+        - `final_outcome` - Ergebnis (PENDING, GRADUATED, RUG, etc.)
+        - `classification` - Klassifizierung
+        - `status_note` - Notiz zum Status
+        """)
+    
+    # Daten-Mapping
+    st.header("🗺️ Daten-Mapping: Was wird wo gefüllt?")
+    
+    st.subheader("WebSocket → Datenbank")
+    st.markdown("""
+    | WebSocket Feld | SQL Feld | Gefüllt von |
+    |----------------|----------|-------------|
+    | `mint` | `token_address` | WebSocket |
+    | `name` | `name` | WebSocket |
+    | `symbol` | `symbol` | WebSocket |
+    | `signature` | `signature` | WebSocket |
+    | `traderPublicKey` | `trader_public_key` | WebSocket |
+    | `bondingCurveKey` | `bonding_curve_key` | WebSocket |
+    | `pool_address` | `pool_address` | WebSocket (berechnet) |
+    | `vTokensInBondingCurve` | `v_tokens_in_bonding_curve` | WebSocket |
+    | `vSolInBondingCurve` | `v_sol_in_bonding_curve` | WebSocket |
+    | `solAmount` | `initial_buy_sol` | WebSocket |
+    | `initialBuy` | `initial_buy_tokens` | WebSocket |
+    | `marketCapSol` | `market_cap_sol` | WebSocket |
+    | `price_sol` | `price_sol` | WebSocket (berechnet) |
+    | `uri` | `metadata_uri` | WebSocket |
+    | `is_mayhem_mode` | `is_mayhem_mode` | WebSocket |
+    | `pool` | `pool_type` | WebSocket |
+    | `phaseId` | `phase_id` | WebSocket |
+    | `vSolInBondingCurve` | `liquidity_sol` | WebSocket (gleicher Wert) |
+    """)
+    
+    st.subheader("API → Datenbank")
+    st.markdown("""
+    | API Feld | SQL Feld | Gefüllt von |
+    |----------|----------|-------------|
+    | `token.decimals` | `token_decimals` | RugCheck API (in n8n) |
+    | `token.supply` | `token_supply` | RugCheck API (in n8n) |
+    | `deployPlatform` | `deploy_platform` | RugCheck API (in n8n) |
+    | `score` / `score_normalised` | `risk_score` | RugCheck API (in n8n) |
+    | `topHolders[]` | `top_10_holders_pct` | RugCheck API (in n8n, berechnet) |
+    """)
+    
+    st.subheader("Metadata → Datenbank")
+    st.markdown("""
+    | Metadata Feld | SQL Feld | Gefüllt von |
+    |---------------|----------|-------------|
+    | `description` | `description` | Metadata URI (in n8n geparst) |
+    | `image` | `image_url` | Metadata URI (in n8n geparst) |
+    | `twitter` | `twitter_url` | Metadata URI (in n8n geparst) |
+    | `telegram` | `telegram_url` | Metadata URI (in n8n geparst) |
+    | `website` | `website_url` | Metadata URI (in n8n geparst) |
+    | `discord` | `discord_url` | Metadata URI (in n8n geparst) |
+    | (berechnet) | `has_socials` | Metadata URI (in n8n, wenn URLs vorhanden) |
+    """)
+    
+    st.subheader("Default-Werte")
+    st.markdown("""
+    | SQL Feld | Default-Wert | Setzt |
+    |----------|--------------|-------|
+    | `discovered_at` | `NOW()` | Datenbank |
+    | `open_market_cap_sol` | `85000` | Datenbank |
+    | `blockchain_id` | `1` | Datenbank |
+    | `is_active` | `TRUE` | Datenbank |
+    | `final_outcome` | `'PENDING'` | Datenbank |
+    | `classification` | `'UNKNOWN'` | Datenbank |
+    | `pool_type` | `'pump'` | Datenbank |
+    """)
+    
+    # Zusammenfassung
+    st.header("📊 Zusammenfassung")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("WebSocket Felder", "16", "Direkt vom Relay")
+    
+    with col2:
+        st.metric("API Felder", "4-6", "In n8n abgerufen")
+    
+    with col3:
+        st.metric("Metadata Felder", "6-7", "In n8n geparst")
+    
+    st.info("""
+    **Wichtig:** 
+    - Die `discovered_coins` Tabelle speichert nur den **initialen Snapshot**
+    - Metriken (die sich ändern) werden in einer separaten Tabelle gespeichert
+    - Alle Felder werden in n8n zusammengeführt und in die Datenbank geschrieben
+    """)
+    
+    # Technische Details
+    st.header("🔧 Technische Details")
+    
+    st.subheader("Services")
+    st.markdown("""
+    - **Relay Service** (`relay/main.py`): Empfängt WebSocket-Daten, filtert, sendet an n8n
+    - **UI Service** (`ui/app.py`): Streamlit Web-Interface für Monitoring und Konfiguration
+    - **n8n Workflow**: Empfängt Batches, ruft APIs ab, parst Metadata, speichert in DB
+    """)
+    
+    st.subheader("Ports")
+    st.markdown("""
+    - **Web UI**: Port `8500` (extern) → `8501` (intern)
+    - **API/Relay**: Port `8010` (extern) → `8000` (intern)
+    """)
+    
+    st.subheader("Endpoints")
+    st.markdown("""
+    - `GET /health` - Health Check (Status, Uptime, etc.)
+    - `GET /metrics` - Prometheus Metrics
+    """)
+
