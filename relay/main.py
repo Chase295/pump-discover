@@ -234,7 +234,7 @@ async def listen_and_relay():
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                    add_log(f"🔌 Verbinde zu Pump.fun... (Versuch #{reconnect_count + 1})")
+                add_log(f"🔌 Verbinde zu Pump.fun... (Versuch #{reconnect_count + 1})")
                 
                 import ssl
                 ssl_context = ssl.create_default_context()
