@@ -78,6 +78,10 @@ CREATE TABLE discovered_coins (
     risk_score INT,                               -- Risiko-Score (0-100)
     top_10_holders_pct NUMERIC(5, 2),             -- Prozentualer Anteil der Top-10-Holder
     has_socials BOOLEAN DEFAULT FALSE,           -- Ob Social Media vorhanden ist
+    social_count INT DEFAULT 0,                   -- Anzahl Social-Links (0-4): Twitter + Telegram + Website + Discord
+    metadata_is_mutable BOOLEAN,                  -- Kann Dev Metadata nachträglich ändern? (aus RugCheck API)
+    mint_authority_enabled BOOLEAN,                -- Kann Dev neue Tokens drucken? (aus RugCheck API)
+    image_hash VARCHAR(64),                       -- pHash des Bildes (für Lazy Scam Detection)
     
     -- ============================================================================
     -- 10. METADATA & SOCIAL MEDIA
@@ -127,6 +131,10 @@ CREATE INDEX idx_dc_deploy_platform ON discovered_coins(deploy_platform);
 -- Risiko-Indexe
 CREATE INDEX idx_dc_risk_score ON discovered_coins(risk_score);
 CREATE INDEX idx_dc_classification ON discovered_coins(classification);
+CREATE INDEX idx_dc_social_count ON discovered_coins(social_count);
+CREATE INDEX idx_dc_metadata_mutable ON discovered_coins(metadata_is_mutable);
+CREATE INDEX idx_dc_mint_authority ON discovered_coins(mint_authority_enabled);
+CREATE INDEX idx_dc_image_hash ON discovered_coins(image_hash);
 
 -- ============================================================================
 -- KOMMENTARE für Dokumentation
@@ -146,3 +154,7 @@ COMMENT ON COLUMN discovered_coins.token_supply IS 'Token Supply (vom API: token
 COMMENT ON COLUMN discovered_coins.deploy_platform IS 'Deployment Platform (vom API: deployPlatform, z.B. "rapidlaunch")';
 COMMENT ON COLUMN discovered_coins.is_mayhem_mode IS 'Spezieller Modus bei Pump.fun';
 COMMENT ON COLUMN discovered_coins.metadata_uri IS 'URI zur Metadata (wird in n8n geparst)';
+COMMENT ON COLUMN discovered_coins.social_count IS 'Anzahl Social-Links (0-4): Twitter + Telegram + Website + Discord - für KI-Analyse';
+COMMENT ON COLUMN discovered_coins.metadata_is_mutable IS 'Kann Dev Metadata nachträglich ändern? (aus RugCheck API: metadata.isMutable) - Soft-Rug-Indikator';
+COMMENT ON COLUMN discovered_coins.mint_authority_enabled IS 'Kann Dev neue Tokens drucken? (aus RugCheck API: mintAuthority.enabled) - Hartes Ausschlusskriterium';
+COMMENT ON COLUMN discovered_coins.image_hash IS 'pHash des Bildes (64 Zeichen) - für Lazy Scam Detection: Erkennung von Coins mit identischem Bild';

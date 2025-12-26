@@ -793,9 +793,22 @@ with tab5:
     | `deployPlatform` | RugCheck API | Deployment Platform (z.B. `"rapidlaunch"`) |
     | `score` / `score_normalised` | RugCheck API | Risiko-Score (0-100) |
     | `topHolders` | RugCheck API | Top Holders Array (für Berechnung) |
+    | `metadata.isMutable` | RugCheck API | **NEU:** Kann Dev Metadata nachträglich ändern? → `metadata_is_mutable` |
+    | `mintAuthority.enabled` | RugCheck API | **NEU:** Kann Dev neue Tokens drucken? → `mint_authority_enabled` |
     """)
     
-    st.subheader("3️⃣ Metadata-Daten (aus URI geparst)")
+    st.subheader("3️⃣ Berechnete Felder (im Relay)")
+    st.markdown("""
+    Der Relay-Service berechnet folgende Felder automatisch:
+    
+    | Feld | Berechnung | Beschreibung |
+    |------|------------|--------------|
+    | `price_sol` | `marketCapSol / vTokensInBondingCurve` | Preis in SOL |
+    | `pool_address` | `bondingCurveKey` | Pool-Adresse |
+    | `social_count` | **NEU:** Anzahl vorhandener Social-Links (0-4) | Twitter + Telegram + Website + Discord |
+    """)
+    
+    st.subheader("4️⃣ Metadata-Daten (aus URI geparst)")
     st.markdown("""
     Die Metadata-URI wird in n8n geparst und liefert:
     
@@ -864,6 +877,10 @@ with tab5:
         - `risk_score` - Risiko-Score (0-100)
         - `top_10_holders_pct` - Prozentualer Anteil der Top-10-Holder
         - `has_socials` - Ob Social Media vorhanden
+        - `social_count` - **NEU:** Anzahl Social-Links (0-4): Twitter + Telegram + Website + Discord
+        - `metadata_is_mutable` - **NEU:** Kann Dev Metadata nachträglich ändern? (aus RugCheck API)
+        - `mint_authority_enabled` - **NEU:** Kann Dev neue Tokens drucken? (aus RugCheck API)
+        - `image_hash` - **NEU:** pHash des Bildes (64 Zeichen) - für Lazy Scam Detection
         
         #### 10. Metadata & Social Media
         - `metadata_uri` - URI zur Metadata
@@ -900,6 +917,7 @@ with tab5:
     | `initialBuy` | `initial_buy_tokens` | WebSocket |
     | `marketCapSol` | `market_cap_sol` | WebSocket |
     | `price_sol` | `price_sol` | WebSocket (berechnet) |
+    | `social_count` | `social_count` | **NEU:** Relay (berechnet: 0-4) |
     | `uri` | `metadata_uri` | WebSocket |
     | `is_mayhem_mode` | `is_mayhem_mode` | WebSocket |
     | `pool` | `pool_type` | WebSocket |
@@ -916,6 +934,8 @@ with tab5:
     | `deployPlatform` | `deploy_platform` | RugCheck API (in n8n) |
     | `score` / `score_normalised` | `risk_score` | RugCheck API (in n8n) |
     | `topHolders[]` | `top_10_holders_pct` | RugCheck API (in n8n, berechnet) |
+    | `metadata.isMutable` | `metadata_is_mutable` | **NEU:** RugCheck API (in n8n) |
+    | `mintAuthority.enabled` | `mint_authority_enabled` | **NEU:** RugCheck API (in n8n) |
     """)
     
     st.subheader("Metadata → Datenbank")
@@ -929,6 +949,8 @@ with tab5:
     | `website` | `website_url` | Metadata URI (in n8n geparst) |
     | `discord` | `discord_url` | Metadata URI (in n8n geparst) |
     | (berechnet) | `has_socials` | Metadata URI (in n8n, wenn URLs vorhanden) |
+    | (berechnet) | `social_count` | **NEU:** Relay (Anzahl vorhandener Social-Links: 0-4) |
+    | (berechnet) | `image_hash` | **NEU:** Optional in n8n (pHash des Bildes für Lazy Scam Detection) |
     """)
     
     st.subheader("Default-Werte")
@@ -950,17 +972,20 @@ with tab5:
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("WebSocket Felder", "16", "Direkt vom Relay")
+        st.metric("WebSocket Felder", "17", "Direkt vom Relay (+ social_count)")
     
     with col2:
-        st.metric("API Felder", "4-6", "In n8n abgerufen")
+        st.metric("API Felder", "6-8", "In n8n abgerufen (+ 2 neue Flags)")
     
     with col3:
-        st.metric("Metadata Felder", "6-7", "In n8n geparst")
+        st.metric("Metadata Felder", "7-9", "In n8n geparst (+ image_hash optional)")
     
     st.info("""
     **Wichtig:** 
     - Die `discovered_coins` Tabelle speichert nur den **initialen Snapshot**
+    - **NEU:** `social_count` wird im Relay berechnet und direkt an n8n gesendet
+    - **NEU:** `metadata_is_mutable` und `mint_authority_enabled` werden in n8n aus der RugCheck API geholt
+    - **NEU:** `image_hash` kann optional in n8n berechnet werden (pHash für Lazy Scam Detection)
     - Metriken (die sich ändern) werden in einer separaten Tabelle gespeichert
     - Alle Felder werden in n8n zusammengeführt und in die Datenbank geschrieben
     """)

@@ -87,3 +87,4 @@ volumes:
   # Named Volume für Config-Daten (Coolify-kompatibel)
   config_data:
 
+

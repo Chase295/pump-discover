@@ -407,9 +407,21 @@ async def listen_and_relay():
                             else:
                                 price_sol = 0
                             
+                            # Berechne social_count (0-4): Anzahl vorhandener Social-Links
+                            social_count = 0
+                            if data.get("twitter_url") or data.get("twitter"):
+                                social_count += 1
+                            if data.get("telegram_url") or data.get("telegram"):
+                                social_count += 1
+                            if data.get("website_url") or data.get("website"):
+                                social_count += 1
+                            if data.get("discord_url") or data.get("discord"):
+                                social_count += 1
+                            
                             # Füge berechnete Felder hinzu
                             data["price_sol"] = price_sol
                             data["pool_address"] = data.get("bondingCurveKey", "")
+                            data["social_count"] = social_count
                             
                             buffer.append(data)
                             relay_status["last_coin_time"] = time.time()
