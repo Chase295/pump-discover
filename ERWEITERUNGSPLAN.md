@@ -342,3 +342,4 @@ Nach Implementierung kann die KI lernen:
 - [ ] UI Informationsseite erweitert
 - [ ] Dokumentation aktualisiert
 
+
