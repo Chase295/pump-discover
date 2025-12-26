@@ -716,27 +716,6 @@ with tab2:
         config["DB_USER"] = st.text_input("DB User", value=config.get("DB_USER", "postgres"), help="Datenbank-Benutzer")
         config["DB_PASSWORD"] = st.text_input("DB Password", value=config.get("DB_PASSWORD", ""), type="password", help="Datenbank-Passwort")
         
-        # DB-Verbindungstest
-        if st.button("🔍 DB-Verbindung testen", type="secondary"):
-            with st.spinner("Teste Datenbank-Verbindung..."):
-                db_status = check_database_connection()
-                if db_status['connected']:
-                    st.success("✅ Datenbank-Verbindung erfolgreich!")
-                    if db_status['tables']['discovered_coins']:
-                        st.success("✅ Tabelle 'discovered_coins' vorhanden")
-                    else:
-                        st.warning("⚠️ Tabelle 'discovered_coins' fehlt")
-                    if db_status['tables']['coin_streams']:
-                        st.success("✅ Tabelle 'coin_streams' vorhanden")
-                    else:
-                        st.info("ℹ️ Tabelle 'coin_streams' fehlt (optional)")
-                    if db_status['tables']['ref_coin_phases']:
-                        st.success("✅ Tabelle 'ref_coin_phases' vorhanden")
-                    else:
-                        st.info("ℹ️ Tabelle 'ref_coin_phases' fehlt (optional)")
-                else:
-                    st.error(f"❌ Datenbank-Verbindung fehlgeschlagen: {db_status.get('error', 'Unbekannter Fehler')}")
-        
         st.subheader("🔧 Sonstige Einstellungen")
         config["HEALTH_PORT"] = st.number_input("Health Port", min_value=1000, max_value=65535, value=config.get("HEALTH_PORT", 8000))
         port_valid, port_error = validate_port(config["HEALTH_PORT"])
