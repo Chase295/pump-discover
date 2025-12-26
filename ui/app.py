@@ -349,11 +349,16 @@ def get_service_logs(lines=100):
             if response.status_code == 200:
                 data = response.json()
                 logs = data.get("logs", [])
-                return '\n'.join(logs)
+                if logs:
+                    return '\n'.join(logs)
+                else:
+                    return "[Keine Logs verfügbar - Service startet gerade oder noch keine Logs generiert]"
             else:
-                return f"Fehler beim Abrufen der Logs: HTTP {response.status_code}"
+                return f"❌ Fehler beim Abrufen der Logs: HTTP {response.status_code}\n\n💡 Prüfe, ob der Relay-Service läuft."
+        except requests.exceptions.ConnectionError:
+            return f"❌ Verbindungsfehler: Kann Relay-Service nicht erreichen (http://{RELAY_SERVICE}:{RELAY_PORT})\n\n💡 Prüfe, ob der Service läuft."
         except Exception as e:
-            return f"Fehler beim Abrufen der Logs über API: {str(e)}\n\n💡 Falls das nicht funktioniert, verwende die Logs im Coolify-Dashboard."
+            return f"❌ Fehler beim Abrufen der Logs über API: {str(e)}\n\n💡 Falls das nicht funktioniert, verwende die Logs im Coolify-Dashboard."
     
     # Normale Docker-Methode (wenn Docker Socket verfügbar)
     try:

@@ -116,6 +116,7 @@ n8n_errors = Counter("pumpfun_n8n_errors_total", "n8n Fehler", ["type"])
 ws_reconnects = Counter("pumpfun_ws_reconnects_total", "WebSocket Reconnects")
 ws_connected = Gauge("pumpfun_ws_connected", "WebSocket Verbindungsstatus (1=connected)")
 n8n_available = Gauge("pumpfun_n8n_available", "n8n Verfügbarkeit (1=available)")
+n8n_available.set(0)  # Initial auf False (0)
 buffer_size = Gauge("pumpfun_buffer_size", "Aktuelle Buffer-Größe")
 batch_send_duration = Histogram("pumpfun_batch_send_duration_seconds", "Dauer für Batch-Versand")
 uptime_seconds = Gauge("pumpfun_uptime_seconds", "Uptime in Sekunden")
@@ -124,7 +125,7 @@ connection_duration = Gauge("pumpfun_connection_duration_seconds", "Dauer der ak
 
 relay_status = {
     "ws_connected": False,
-    "n8n_available": True,
+    "n8n_available": False,  # Startet als False, wird erst auf True gesetzt nach erfolgreichem Send
     "last_error": None,
     "start_time": time.time(),
     "last_coin_time": None,
@@ -150,7 +151,7 @@ async def metrics_handler(request):
 async def health_check(request):
     """Health Check Endpoint mit detaillierten Infos"""
     ws_status = relay_status.get("ws_connected", False)
-    n8n_status = relay_status.get("n8n_available", True)
+    n8n_status = relay_status.get("n8n_available", False)  # Default: False
     uptime = time.time() - relay_status["start_time"]
     last_coin = relay_status.get("last_coin_time")
     last_msg = relay_status.get("last_message_time")
@@ -174,15 +175,27 @@ async def health_check(request):
 
 async def logs_handler(request):
     """Logs Endpoint für API-Zugriff"""
-    lines = int(request.query.get("lines", "100"))
-    # Hole die letzten N Zeilen (neueste zuerst)
-    logs = log_buffer[-lines:] if lines <= len(log_buffer) else log_buffer
-    logs.reverse()  # Neueste oben
-    return web.json_response({
-        "logs": logs,
-        "total_lines": len(log_buffer),
-        "requested_lines": lines
-    })
+    try:
+        lines = int(request.query.get("lines", "100"))
+        # Hole die letzten N Zeilen (neueste zuerst)
+        if log_buffer:
+            logs = log_buffer[-lines:] if lines <= len(log_buffer) else log_buffer
+            logs.reverse()  # Neueste oben
+        else:
+            logs = ["[Keine Logs verfügbar - Service startet gerade...]"]
+        
+        return web.json_response({
+            "logs": logs,
+            "total_lines": len(log_buffer),
+            "requested_lines": lines
+        })
+    except Exception as e:
+        return web.json_response({
+            "logs": [f"[Fehler beim Abrufen der Logs: {str(e)}]"],
+            "total_lines": 0,
+            "requested_lines": 0,
+            "error": str(e)
+        }, status=500)
 
 async def reload_config_handler(request):
     """Lädt die Konfiguration neu (ohne Neustart)"""
