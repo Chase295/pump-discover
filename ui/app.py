@@ -171,7 +171,12 @@ def get_default_config():
         "WS_CONNECTION_TIMEOUT": 30,
         "WS_URI": "wss://pumpportal.fun/api/data",
         "BAD_NAMES_PATTERN": "test|bot|rug|scam|cant|honey|faucet",
-        "HEALTH_PORT": 8000
+        "HEALTH_PORT": 8000,
+        "DB_HOST": "localhost",
+        "DB_PORT": 5432,
+        "DB_NAME": "pump_discover",
+        "DB_USER": "postgres",
+        "DB_PASSWORD": ""  # Leer als Default
     }
 
 def validate_url(url, allow_empty=False):
