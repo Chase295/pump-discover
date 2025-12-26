@@ -89,7 +89,8 @@ def load_config():
     global BAD_NAMES
     BAD_NAMES = re.compile(rf'({BAD_NAMES_PATTERN})', re.IGNORECASE)
 
-BAD_NAMES = re.compile(rf'({BAD_NAMES_PATTERN})', re.IGNORECASE)
+# BAD_NAMES wird nach load_config() gesetzt
+BAD_NAMES = None
 
 # Logs-Buffer für API-Zugriff
 log_buffer = []
