@@ -500,3 +500,4 @@ if st.button("🔄 Konfiguration neu laden", type="primary"):
 **Version:** 1.0  
 **Autor:** Pump Discover Team
 
+

@@ -123,3 +123,4 @@ Du kannst Alerts hinzufügen für:
 **Version:** 1.0  
 **Grafana Version:** 10.0.0+
 
+
